@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faradaysches Induktionsgesetz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Verhindert Markierungen beim schnellen Klicken der Buttons */
+        button { user-select: none; }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen p-4 md:p-6">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <h1 class="text-2xl font-bold text-slate-900 mb-2">Faradaysches Induktionsgesetz</h1>
+            <p class="text-slate-600 mb-4 flex items-center gap-2 flex-wrap">
+                <span>Induktionsspannung:</span> 
+                <strong class="font-mono text-lg bg-slate-100 px-2 py-1 rounded inline-block">
+                    U<sub>ind</sub> = - dΦ<sub>m</sub>/dt = - d/dt (B · A · cos(θ))
+                </strong>
+            </p>
+            <div class="flex gap-4 overflow-x-auto pb-2" id="mode-buttons">
+                <button data-mode="manual" class="mode-btn px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap bg-indigo-600 text-white">Manuell (Schieberegler)</button>
+                <button data-mode="autoB" class="mode-btn px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200">1. Änderung von B (Magnet)</button>
+                <button data-mode="autoA" class="mode-btn px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200">2. Änderung von A (Fläche)</button>
+                <button data-mode="autoTheta" class="mode-btn px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200">3. Änderung von θ (Rotation)</button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Main Visualization -->
+            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center relative min-h-[400px] overflow-hidden">
+                <h2 class="absolute top-4 left-6 text-lg font-semibold text-slate-800">Visualisierung der Leiterschleife</h2>
+                <button id="play-pause-btn" class="absolute top-4 right-6 px-4 py-2 bg-slate-800 text-white rounded-lg shadow hover:bg-slate-700 transition">
+                    Pause
+                </button>
+
+                <svg id="main-svg" viewBox="0 0 400 300" width="400" height="300" class="overflow-visible mt-8 max-w-full">
+                    <!-- SVG-Inhalte werden dynamisch durch JavaScript generiert -->
+                </svg>
+
+                <div class="absolute bottom-4 left-6 flex gap-4 flex-wrap text-sm font-mono mt-4">
+                    <span class="text-blue-600">■ Magnetfeld B</span>
+                    <span class="text-slate-600">■ Leiterschleife (A)</span>
+                    <span class="text-red-500">■ Induzierter Strom (I_ind)</span>
+                </div>
+            </div>
+
+            <!-- Controls & Variables -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                <h2 class="text-lg font-semibold text-slate-800 border-b pb-2">Physikalische Größen</h2>
+                
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="font-medium text-blue-700">Magnetfeld B(t)</label>
+                        <span id="display-b" class="font-mono text-sm">0.50 T</span>
+                    </div>
+                    <input type="range" id="slider-b" min="-1" max="1" step="0.01" value="0.5" class="w-full accent-blue-600">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="font-medium text-slate-700">Fläche A(t)</label>
+                        <span id="display-a" class="font-mono text-sm">1.00 m²</span>
+                    </div>
+                    <input type="range" id="slider-a" min="0.1" max="2" step="0.01" value="1.0" class="w-full accent-slate-600">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="font-medium text-emerald-700">Winkel θ(t)</label>
+                        <span id="display-theta" class="font-mono text-sm">0°</span>
+                    </div>
+                    <input type="range" id="slider-theta" min="0" max="360" step="1" value="0" class="w-full accent-emerald-600">
+                </div>
+
+                <div class="pt-4 border-t space-y-4">
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                        <div class="text-sm text-slate-500 mb-1">Magn. Fluss Φ<sub>m</sub> = B · A · cos(θ)</div>
+                        <div id="display-phi" class="text-2xl font-mono text-slate-800">0.000 Wb</div>
+                    </div>
+                    
+                    <div class="bg-red-50 p-4 rounded-lg border border-red-100">
+                        <div class="text-sm text-red-500 mb-1">Induktionsspannung U<sub>ind</sub> = -dΦ<sub>m</sub>/dt</div>
+                        <div id="display-u" class="text-2xl font-mono font-bold text-red-600">0.000 V</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graphs Area -->
+        <div class="flex flex-col md:flex-row gap-6">
+            <div class="flex-1 bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-700 mb-2">Magnetischer Fluss Φ<sub>m</sub>(t)</h3>
+                <svg viewBox="0 0 300 100" class="w-full h-24 overflow-visible">
+                    <line x1="0" y1="50" x2="300" y2="50" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="4 4" />
+                    <polyline id="graph-phi" points="" fill="none" stroke="#475569" stroke-width="3" stroke-linejoin="round" />
+                </svg>
+            </div>
+            
+            <div class="flex-1 bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-700 mb-2">Induzierte Spannung U<sub>ind</sub>(t)</h3>
+                <svg viewBox="0 0 300 100" class="w-full h-24 overflow-visible">
+                    <line x1="0" y1="50" x2="300" y2="50" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="4 4" />
+                    <polyline id="graph-u" points="" fill="none" stroke="#ef4444" stroke-width="3" stroke-linejoin="round" />
+                </svg>
+            </div>
+        </div>
+        
+        <!-- Didaktische Box -->
+        <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+            <h3 class="text-indigo-900 font-bold mb-2">Didaktische Hinweise:</h3>
+            <ul class="list-disc list-inside text-indigo-800 space-y-1">
+                <li>Eine Spannung (rot) wird <strong>nur dann</strong> induziert, wenn sich der magnetische Fluss (grau) zeitlich <strong>ändert</strong> (dΦ<sub>m</sub>/dt ≠ 0).</li>
+                <li>Das induzierte E-Feld ist nicht-konservativ (∮ E⃗ · ds⃗ ≠ 0) und treibt den Strom in der gesamten Leiterschleife an.</li>
+                <li>Wechsle oben die Modi durch, um zu sehen, wie die Änderung einzelner Parameter (B, A oder θ) zur Entstehung einer Induktionsspannung führt.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Simulations-Konstanten
+        const HISTORY_LENGTH = 150;
+        
+        // Status der Applikation
+        const state = {
+            mode: 'manual', // 'manual', 'autoB', 'autoA', 'autoTheta'
+            isPlaying: true,
+            B: 0.5,
+            A: 1.0,
+            theta: 0,
+            time: 0,
+            lastPhi: null,
+            history: Array(HISTORY_LENGTH).fill({ phi: 0, u: 0 }),
+            chargePosition: 0,
+            u: 0,
+            phi: 0
+        };
+
+        // DOM Elemente zwischenspeichern
+        const mainSvg = document.getElementById('main-svg');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const modeButtons = document.querySelectorAll('.mode-btn');
+        
+        const sliderB = document.getElementById('slider-b');
+        const sliderA = document.getElementById('slider-a');
+        const sliderTheta = document.getElementById('slider-theta');
+        
+        const displayB = document.getElementById('display-b');
+        const displayA = document.getElementById('display-a');
+        const displayTheta = document.getElementById('display-theta');
+        const displayPhi = document.getElementById('display-phi');
+        const displayU = document.getElementById('display-u');
+        
+        const graphPhi = document.getElementById('graph-phi');
+        const graphU = document.getElementById('graph-u');
+
+        let lastTime = performance.now();
+        let animationFrameId;
+
+        // UI Event Listeners
+        playPauseBtn.addEventListener('click', () => {
+            state.isPlaying = !state.isPlaying;
+            playPauseBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
+            if (state.isPlaying) {
+                lastTime = performance.now();
+                animationFrameId = requestAnimationFrame(animate);
+            }
+        });
+
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                state.mode = e.target.dataset.mode;
+                
+                // Button Styling aktualisieren
+                modeButtons.forEach(b => {
+                    b.classList.remove('bg-indigo-600', 'text-white');
+                    b.classList.add('bg-slate-100', 'text-slate-700');
+                });
+                e.target.classList.remove('bg-slate-100', 'text-slate-700');
+                e.target.classList.add('bg-indigo-600', 'text-white');
+
+                // Sliders de/aktivieren
+                const isManual = state.mode === 'manual';
+                sliderB.disabled = !isManual;
+                sliderA.disabled = !isManual;
+                sliderTheta.disabled = !isManual;
+            });
+        });
+
+        sliderB.addEventListener('input', (e) => { if(state.mode === 'manual') state.B = parseFloat(e.target.value); });
+        sliderA.addEventListener('input', (e) => { if(state.mode === 'manual') state.A = parseFloat(e.target.value); });
+        sliderTheta.addEventListener('input', (e) => { if(state.mode === 'manual') state.theta = (parseFloat(e.target.value) * Math.PI) / 180; });
+
+        // Haupt-Animations-Schleife
+        function animate(time) {
+            if (!state.isPlaying) return;
+
+            const dt = Math.min((time - lastTime) / 1000, 0.1);
+            lastTime = time;
+            state.time += dt;
+
+            // Auto-Modi Logik (gekoppelt an die Zeit)
+            if (state.mode === 'autoB') {
+                state.B = 0.8 * Math.sin(2 * Math.PI * 0.5 * state.time);
+            } else if (state.mode === 'autoA') {
+                state.A = 1.0 + 0.8 * Math.sin(2 * Math.PI * 0.5 * state.time);
+            } else if (state.mode === 'autoTheta') {
+                state.theta = (2 * Math.PI * 0.3 * state.time) % (2 * Math.PI);
+            }
+
+            // Physik Berechnungen
+            state.phi = state.B * state.A * Math.cos(state.theta);
+            
+            state.u = 0;
+            if (state.lastPhi !== null && dt > 0) {
+                state.u = -(state.phi - state.lastPhi) / dt;
+            }
+            state.lastPhi = state.phi;
+
+            state.chargePosition += state.u * dt * 50;
+
+            // Historie aktualisieren (Array verschieben)
+            state.history.shift();
+            state.history.push({ phi: state.phi, u: state.u });
+
+            updateDOM();
+
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        // DOM Aktualisierungen in jedem Frame ausführen
+        function updateDOM() {
+            // Textanzeigen
+            displayB.textContent = `${state.B.toFixed(2)} T`;
+            displayA.textContent = `${state.A.toFixed(2)} m²`;
+            displayTheta.textContent = `${((state.theta * 180) / Math.PI).toFixed(0)}°`;
+            displayPhi.textContent = `${state.phi.toFixed(3)} Wb`;
+            displayU.textContent = `${state.u.toFixed(3)} V`;
+
+            // Sliders synchronisieren (wenn in Auto-Modus)
+            if (state.mode !== 'manual') {
+                sliderB.value = state.B;
+                sliderA.value = state.A;
+                sliderTheta.value = (state.theta * 180) / Math.PI;
+            }
+
+            // Graphen zeichnen (Skalierung: phi=40, u=10)
+            const ptsPhi = state.history.map((pt, i) => `${(i / HISTORY_LENGTH) * 300},${50 - (pt.phi * 40)}`).join(' ');
+            const ptsU = state.history.map((pt, i) => `${(i / HISTORY_LENGTH) * 300},${50 - (pt.u * 10)}`).join(' ');
+            
+            graphPhi.setAttribute('points', ptsPhi);
+            graphU.setAttribute('points', ptsU);
+
+            renderMainSVG();
+        }
+
+        // Zeichnen der Haupt-Visualisierung (3D Leiterschleife, B-Feld, Vektoren)
+        function renderMainSVG() {
+            let svgContent = '';
+
+            // 1. Magnetfeld (B-Vektoren)
+            const bStrength = Math.abs(state.B);
+            const bDir = state.B >= 0 ? 1 : -1;
+            for (let x = -80; x <= 80; x += 80) {
+                for (let z = -80; z <= 80; z += 80) {
+                    const cx = 200 + x;
+                    const cyBase = 150 + z * 0.4;
+                    const yStart = cyBase + 60 * bDir;
+                    const yEnd = cyBase - 60 * bDir;
+                    const opacity = Math.max(0.1, bStrength);
+                    
+                    svgContent += `
+                        <g opacity="${opacity}">
+                            <line x1="${cx}" y1="${yStart}" x2="${cx}" y2="${yEnd}" stroke="#3b82f6" stroke-width="3" opacity="0.6" />
+                            <polygon points="${cx},${yEnd - 8*bDir} ${cx-5},${yEnd + 4*bDir} ${cx+5},${yEnd + 4*bDir}" fill="#3b82f6" opacity="0.8" />
+                        </g>
+                    `;
+                }
+            }
+
+            // 2. 3D-Projektion der Leiterschleife
+            const W = 100 * Math.sqrt(state.A);
+            const L = 100 * Math.sqrt(state.A);
+            const corners = [
+                { x: W/2, y: 0, z: L/2 },
+                { x: W/2, y: 0, z: -L/2 },
+                { x: -W/2, y: 0, z: -L/2 },
+                { x: -W/2, y: 0, z: L/2 }
+            ];
+            
+            const projectedCorners = corners.map(p => {
+                const rotY = p.y * Math.cos(state.theta) - p.z * Math.sin(state.theta);
+                const rotZ = p.y * Math.sin(state.theta) + p.z * Math.cos(state.theta);
+                return {
+                    cx: 200 + p.x,
+                    cy: 150 - rotY + rotZ * 0.4
+                };
+            });
+            
+            const loopPath = `M ${projectedCorners[0].cx} ${projectedCorners[0].cy} 
+                              L ${projectedCorners[1].cx} ${projectedCorners[1].cy} 
+                              L ${projectedCorners[2].cx} ${projectedCorners[2].cy} 
+                              L ${projectedCorners[3].cx} ${projectedCorners[3].cy} Z`;
+
+            svgContent += `<path d="${loopPath}" fill="rgba(255, 255, 255, 0.4)" stroke="#475569" stroke-width="6" stroke-linejoin="round" />`;
+
+            // 3. Induzierter Strom (Lauflicht-Animation)
+            if (Math.abs(state.u) > 0.1) {
+                const dashOffset = -state.chargePosition * Math.sign(state.u);
+                svgContent += `
+                    <path d="${loopPath}" fill="none" stroke="#ef4444" stroke-width="6" stroke-dasharray="20 40" 
+                          stroke-dashoffset="${dashOffset}" stroke-linejoin="round" />
+                `;
+            }
+
+            // 4. Flächennormale Vektor
+            const ny = Math.cos(state.theta);
+            const nz = Math.sin(state.theta);
+            const endX = 200;
+            const endY = 150 - ny * 80 + nz * 0.4 * 80;
+
+            svgContent += `
+                <g>
+                    <line x1="200" y1="150" x2="${endX}" y2="${endY}" stroke="#10b981" stroke-width="3" />
+                    <circle cx="${endX}" cy="${endY}" r="4" fill="#10b981" />
+                    <text x="${endX + 10}" y="${endY}" fill="#10b981" font-size="14" font-weight="bold">n (Flächennormale)</text>
+                </g>
+            `;
+
+            mainSvg.innerHTML = svgContent;
+        }
+
+        // Start!
+        updateDOM();
+        animationFrameId = requestAnimationFrame(animate);
+
+    </script>
+</body>
+</html>

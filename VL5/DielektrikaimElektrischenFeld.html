@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dielektrikum Visualisierung</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* Eigene Animationen, die in Tailwind Standard eventuell fehlen */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800">
+
+  <div class="flex flex-col h-full p-4 md:p-6 min-h-[900px] max-w-[1600px] mx-auto">
+    
+    <!-- Header -->
+    <header class="mb-6 pb-4 border-b-2 border-slate-200">
+      <h1 class="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
+        Dielektrika im elektrischen Feld
+      </h1>
+      <p class="text-base md:text-lg text-slate-600">Interaktives Experiment zum Einfügen von Nichtleitern in Kondensatoren</p>
+    </header>
+
+    <div class="flex flex-col xl:flex-row gap-6 flex-1">
+      
+      <!-- Linke Spalte: Visualisierung & Controls -->
+      <div class="flex-1 flex flex-col gap-6">
+        
+        <!-- Haupt-SVG Canvas -->
+        <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-4 relative min-h-[400px] flex items-center justify-center overflow-hidden">
+          
+          <svg viewBox="0 0 600 300" class="w-full h-full max-w-[800px]">
+            <defs>
+              <!-- Muster für Dipole im Dielektrikum -->
+              <pattern id="dipoles" x="0" y="0" width="30" height="30" patternUnits="userSpaceOnUse">
+                <ellipse cx="15" cy="15" rx="10" ry="5" fill="rgba(255,255,255,0.4)" stroke="rgba(255,255,255,0.8)" stroke-width="1" transform="rotate(90 15 15)" />
+                <text x="15" y="11" text-anchor="middle" class="fill-blue-800 text-[8px] font-bold">-</text>
+                <text x="15" y="22" text-anchor="middle" class="fill-red-800 text-[8px] font-bold">+</text>
+              </pattern>
+              
+              <linearGradient id="dielGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#bae6fd" stop-opacity="0.8" />
+                <stop offset="100%" stop-color="#7dd3fc" stop-opacity="0.8" />
+              </linearGradient>
+            </defs>
+
+            <!-- Stromkreis Wires Links -->
+            <g class="transition-all duration-500">
+              <line x1="50" y1="80" x2="100" y2="80" stroke="#334155" stroke-width="3" />
+              <line x1="50" y1="220" x2="100" y2="220" stroke="#334155" stroke-width="3" />
+              <line x1="50" y1="80" x2="50" y2="120" stroke="#334155" stroke-width="3" />
+              <line x1="50" y1="220" x2="50" y2="180" stroke="#334155" stroke-width="3" />
+              
+              <!-- Schalter / Spannungsquelle -->
+              <g id="circuit-connected" class="animate-fade-in" style="display: none;">
+                <!-- Batterie angeschlossen -->
+                <line x1="30" y1="140" x2="70" y2="140" stroke="#334155" stroke-width="4" />
+                <line x1="40" y1="150" x2="60" y2="150" stroke="#334155" stroke-width="6" />
+                <line x1="30" y1="160" x2="70" y2="160" stroke="#334155" stroke-width="4" />
+                <line x1="40" y1="170" x2="60" y2="170" stroke="#334155" stroke-width="6" />
+                <line x1="50" y1="120" x2="50" y2="140" stroke="#334155" stroke-width="3" />
+                <line x1="50" y1="170" x2="50" y2="180" stroke="#334155" stroke-width="3" />
+                <text x="20" y="160" class="fill-slate-600 font-bold text-sm">U_0</text>
+              </g>
+
+              <g id="circuit-disconnected" class="animate-fade-in">
+                <!-- Schalter offen -->
+                <line x1="50" y1="120" x2="30" y2="150" stroke="#334155" stroke-width="3" />
+                <circle cx="50" cy="120" r="3" fill="#334155" />
+                <circle cx="50" cy="180" r="3" fill="#334155" />
+              </g>
+            </g>
+
+            <!-- E-Feld Linien (Hintergrund) -->
+            <g id="field-lines-group"></g>
+
+            <!-- Dielektrikum Block -->
+            <g id="dielectric-group" class="transition-all duration-300 ease-out">
+              <rect 
+                id="diel-rect-bg"
+                x="100" y="85" 
+                width="200" height="130" 
+                fill="url(#dielGrad)" 
+                stroke="#0284c7" stroke-width="2"
+                rx="2"
+              />
+              <!-- Innere Dipol-Struktur -->
+              <rect 
+                id="diel-rect-pattern"
+                x="100" y="85" 
+                width="200" height="130" 
+                fill="url(#dipoles)" 
+                pointer-events="none"
+              />
+              <text id="diel-label" x="200" y="155" text-anchor="middle" class="fill-blue-900 font-bold italic bg-white/50 backdrop-blur-sm px-2">
+                Dielektrikum
+              </text>
+            </g>
+
+            <!-- Kondensatorplatten (Vordergrund für saubere Kanten) -->
+            <!-- Obere Platte (+) -->
+            <rect x="100" y="70" width="400" height="10" fill="#cbd5e1" stroke="#475569" stroke-width="2" rx="3" />
+            <!-- Untere Platte (-) -->
+            <rect x="100" y="220" width="400" height="10" fill="#cbd5e1" stroke="#475569" stroke-width="2" rx="3" />
+
+            <!-- Ladungen rendern -->
+            <g id="charges-group"></g>
+          </svg>
+
+          <!-- Status Badge -->
+          <div class="absolute top-4 left-4 bg-white/90 backdrop-blur-sm border border-slate-200 px-3 py-1.5 rounded-full text-sm font-bold shadow-sm flex items-center gap-2">
+            <span id="status-indicator" class="w-3 h-3 rounded-full bg-red-500"></span>
+            <span id="status-text">Spannungsquelle abgehängt (Q = const)</span>
+          </div>
+
+        </div>
+
+        <!-- Steuerungspanel -->
+        <div class="bg-white border border-slate-200 shadow-md rounded-xl p-5 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+          
+          <!-- Schalter Toggle -->
+          <div class="flex flex-col gap-3">
+            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="settings-2" class="w-5 h-5 text-indigo-500"></i>
+              Szenario wählen
+            </h3>
+            <div class="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+              <button
+                id="btn-disconnect"
+                class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-blue-700"
+              >
+                <i data-lucide="power-off" class="w-4 h-4"></i> a) Abgehängt
+              </button>
+              <button
+                id="btn-connect"
+                class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all text-slate-500 hover:text-slate-700"
+              >
+                <i data-lucide="power" class="w-4 h-4"></i> b) Angeschlossen
+              </button>
+            </div>
+            <p id="scenario-desc" class="text-xs text-slate-500 leading-tight">
+              Die Platten sind isoliert. Die Gesamtladung Q kann nicht entweichen und bleibt konstant.
+            </p>
+          </div>
+
+          <!-- Slider -->
+          <div class="flex flex-col gap-4">
+            <!-- Slider 1: Füllstand -->
+            <div>
+              <div class="flex justify-between items-end mb-1">
+                <label class="text-sm font-bold text-slate-700">Dielektrikum einschieben</label>
+                <span class="text-sm font-mono font-bold text-blue-600"><span id="val-fillLevel">50</span>%</span>
+              </div>
+              <input 
+                id="slider-fillLevel"
+                type="range" min="0" max="100" step="1" value="50"
+                class="w-full accent-blue-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
+
+            <!-- Slider 2: Epsilon R -->
+            <div>
+              <div class="flex justify-between items-end mb-1">
+                <label class="text-sm font-bold text-slate-700 flex items-center gap-1">
+                  Dielektrizitätszahl <span class="italic font-serif text-lg">ε<sub>r</sub></span>
+                </label>
+                <span class="text-sm font-mono font-bold text-emerald-600" id="val-epsilonR">4.0</span>
+              </div>
+              <input 
+                id="slider-epsilonR"
+                type="range" min="1" max="10" step="0.1" value="4.0"
+                class="w-full accent-emerald-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Rechte Spalte: Theorie & Live-Werte -->
+      <div class="w-full xl:w-[400px] flex flex-col gap-4">
+        
+        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white shadow-xl flex-1 flex flex-col relative overflow-hidden border border-slate-700">
+          <!-- Dekorativer Hintergrund -->
+          <i data-lucide="zap" class="absolute -right-6 -bottom-6 w-32 h-32 text-slate-700 opacity-20"></i>
+          
+          <h3 class="text-xl font-bold mb-4 border-b border-slate-700 pb-3 flex items-center gap-2">
+            Messwerte & Theorie
+          </h3>
+
+          <!-- Formel-Box (Allgemein) -->
+          <div class="bg-slate-800/80 p-4 rounded-lg border border-slate-600 mb-6">
+            <div class="text-slate-400 text-xs font-bold uppercase tracking-wide mb-2">Allgemein gilt:</div>
+            <div class="flex justify-center mb-2">
+              <span class="font-serif text-2xl text-blue-300">C · U = Q</span>
+            </div>
+            <div class="flex justify-center">
+              <span class="font-serif text-lg text-emerald-300 border-t border-slate-600 pt-2 w-full text-center">
+                C<sub>diel</sub> = ε<sub>r</sub> · C<sub>luft</sub>
+              </span>
+            </div>
+          </div>
+
+          <!-- Live-Messwerte Tabelle -->
+          <div class="space-y-4 relative z-10 mb-6 flex-1">
+            
+            <!-- Kapazität (Immer steigend) -->
+            <div class="bg-white/10 p-3 rounded-lg border border-white/10 flex items-center justify-between">
+              <div>
+                <div class="text-slate-300 text-sm">Kapazität <span class="font-serif italic text-lg">C</span></div>
+                <div class="text-[10px] text-slate-400">Nimmt immer zu</div>
+              </div>
+              <div class="font-mono text-2xl font-bold text-emerald-400 flex items-center gap-2">
+                <span id="val-C">1.00</span><span class="text-sm">C<sub>0</sub></span>
+              </div>
+            </div>
+
+            <!-- Spannung U -->
+            <div id="box-U" class="p-3 rounded-lg border flex items-center justify-between transition-colors bg-white/10 border-white/10">
+              <div>
+                <div class="text-slate-300 text-sm">Spannung <span class="font-serif italic text-lg">U</span></div>
+                <div id="status-U" class="text-[10px] text-blue-300 font-bold">Fällt ab</div>
+              </div>
+              <div class="font-mono text-2xl font-bold text-blue-300 flex items-center gap-2">
+                <span id="val-U">1.00</span><span class="text-sm">U<sub>0</sub></span>
+              </div>
+            </div>
+
+            <!-- Ladung Q -->
+            <div id="box-Q" class="p-3 rounded-lg border flex items-center justify-between transition-colors bg-red-900/40 border-red-500/50">
+              <div>
+                <div class="text-slate-300 text-sm">Ladung <span class="font-serif italic text-lg">Q</span></div>
+                <div id="status-Q" class="text-[10px] text-red-300 font-bold">KONSTANT</div>
+              </div>
+              <div class="font-mono text-2xl font-bold text-red-400 flex items-center gap-2">
+                <span id="val-Q">1.00</span><span class="text-sm">Q<sub>0</sub></span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Erklärungs-Box passend zum Szenario -->
+          <div class="bg-indigo-900/40 p-4 rounded-xl border border-indigo-500/30">
+            <h4 class="text-indigo-300 font-bold text-sm mb-2 flex items-center gap-2">
+              <i data-lucide="info" class="w-4 h-4"></i> Fazit laut Vorlesung
+            </h4>
+            <div id="fazit-text" class="text-sm text-slate-300 leading-relaxed animate-fade-in">
+              <!-- Wird per JS gefüllt -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // --- Initialisierung der Icons ---
+    lucide.createIcons();
+
+    // --- State ---
+    let isConnected = false;
+    let fillLevel = 50;
+    let epsilonR = 4.0;
+
+    // --- Physik & Berechnungen ---
+    const C0 = 1;
+    const U0 = 1;
+    const Q0 = C0 * U0;
+
+    // --- DOM Elemente ---
+    const dom = {
+      // Inputs
+      btnDisconnect: document.getElementById('btn-disconnect'),
+      btnConnect: document.getElementById('btn-connect'),
+      sliderFillLevel: document.getElementById('slider-fillLevel'),
+      sliderEpsilonR: document.getElementById('slider-epsilonR'),
+      
+      // Values (Text)
+      valFillLevel: document.getElementById('val-fillLevel'),
+      valEpsilonR: document.getElementById('val-epsilonR'),
+      valC: document.getElementById('val-C'),
+      valU: document.getElementById('val-U'),
+      valQ: document.getElementById('val-Q'),
+      
+      // UI / Status Elements
+      scenarioDesc: document.getElementById('scenario-desc'),
+      statusIndicator: document.getElementById('status-indicator'),
+      statusText: document.getElementById('status-text'),
+      circuitConnected: document.getElementById('circuit-connected'),
+      circuitDisconnected: document.getElementById('circuit-disconnected'),
+      
+      // Live Data Boxes
+      boxU: document.getElementById('box-U'),
+      statusU: document.getElementById('status-U'),
+      boxQ: document.getElementById('box-Q'),
+      statusQ: document.getElementById('status-Q'),
+      fazitText: document.getElementById('fazit-text'),
+
+      // SVG Elements
+      dielGroup: document.getElementById('dielectric-group'),
+      dielRectBg: document.getElementById('diel-rect-bg'),
+      dielRectPattern: document.getElementById('diel-rect-pattern'),
+      dielLabel: document.getElementById('diel-label'),
+      chargesGroup: document.getElementById('charges-group'),
+      fieldLinesGroup: document.getElementById('field-lines-group')
+    };
+
+    // --- Update-Logik ---
+    function update() {
+      // 1. Berechnungen
+      const x = fillLevel / 100;
+      const cEff = C0 * (1 - x) + C0 * x * epsilonR;
+
+      let u, q;
+      if (isConnected) {
+        u = U0;
+        q = cEff * u;
+      } else {
+        q = Q0;
+        u = q / cEff;
+      }
+
+      const qAirPart = C0 * (1 - x) * u;
+      const qDielPart = C0 * x * epsilonR * u;
+
+      // 2. UI Aktualisieren (Werte)
+      dom.valFillLevel.innerText = fillLevel;
+      dom.valEpsilonR.innerText = epsilonR.toFixed(1);
+      dom.valC.innerText = cEff.toFixed(2);
+      dom.valU.innerText = u.toFixed(2);
+      dom.valQ.innerText = q.toFixed(2);
+
+      // 3. UI Aktualisieren (Zustände / CSS)
+      if (isConnected) {
+        // Buttons
+        dom.btnConnect.className = "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-green-700";
+        dom.btnDisconnect.className = "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all text-slate-500 hover:text-slate-700";
+        
+        // Texte
+        dom.scenarioDesc.innerText = "Die Batterie hält die Spannung über die Platten konstant. Es kann Ladung nachfließen.";
+        dom.statusText.innerText = "Spannungsquelle angeschlossen (U = const)";
+        dom.statusIndicator.className = "w-3 h-3 rounded-full bg-green-500 animate-pulse";
+        
+        // Circuit SVG
+        dom.circuitConnected.style.display = "";
+        dom.circuitDisconnected.style.display = "none";
+
+        // Info-Boxen rechts
+        dom.boxU.className = "p-3 rounded-lg border flex items-center justify-between transition-colors bg-blue-900/40 border-blue-500/50";
+        dom.statusU.innerText = "KONSTANT";
+        dom.boxQ.className = "p-3 rounded-lg border flex items-center justify-between transition-colors bg-white/10 border-white/10";
+        dom.statusQ.innerText = "Steigt an";
+
+        dom.fazitText.innerHTML = `
+          <strong class="text-white">b) Angeschlossene Quelle:</strong><br/>
+          Die Batterie erzwingt eine feste Spannung (<span class="text-blue-300">U = U'</span>). 
+          Durch die höhere Kapazität des Dielektrikums wird zusätzliche Ladung aus der Batterie auf die Platten gesaugt 
+          (<span class="text-red-300">Q &lt; Q'</span>).
+          <div class="mt-2 text-xs text-indigo-200 italic">
+            Tipp: Beobachten Sie in der Grafik, wie sich die +/- Symbole über dem blauen Dielektrikum verdichten!
+          </div>
+        `;
+      } else {
+        // Buttons
+        dom.btnDisconnect.className = "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-blue-700";
+        dom.btnConnect.className = "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all text-slate-500 hover:text-slate-700";
+        
+        // Texte
+        dom.scenarioDesc.innerText = "Die Platten sind isoliert. Die Gesamtladung Q kann nicht entweichen und bleibt konstant.";
+        dom.statusText.innerText = "Spannungsquelle abgehängt (Q = const)";
+        dom.statusIndicator.className = "w-3 h-3 rounded-full bg-red-500";
+        
+        // Circuit SVG
+        dom.circuitConnected.style.display = "none";
+        dom.circuitDisconnected.style.display = "";
+
+        // Info-Boxen rechts
+        dom.boxU.className = "p-3 rounded-lg border flex items-center justify-between transition-colors bg-white/10 border-white/10";
+        dom.statusU.innerText = "Fällt ab";
+        dom.boxQ.className = "p-3 rounded-lg border flex items-center justify-between transition-colors bg-red-900/40 border-red-500/50";
+        dom.statusQ.innerText = "KONSTANT";
+
+        dom.fazitText.innerHTML = `
+          <strong class="text-white">a) Abgehängte Quelle:</strong><br/>
+          Da die Platten isoliert sind, kann die Ladung nicht entweichen (<span class="text-red-300">Q = Q'</span>). 
+          Das Dielektrikum schwächt durch Polarisation das E-Feld ab. 
+          Folge: Die Spannung sinkt (<span class="text-blue-300">U &gt; U'</span>).
+        `;
+      }
+
+      // 4. SVG Aktualisieren (Dielektrikum Block)
+      const platesWidth = 400;
+      const dielWidth = platesWidth * x;
+      
+      if (x > 0) {
+        dom.dielGroup.style.display = "";
+        dom.dielRectBg.setAttribute("width", dielWidth);
+        dom.dielRectPattern.setAttribute("width", dielWidth);
+        
+        if (x > 0.15) {
+          dom.dielLabel.style.display = "";
+          dom.dielLabel.setAttribute("x", 100 + dielWidth / 2);
+        } else {
+          dom.dielLabel.style.display = "none";
+        }
+      } else {
+        dom.dielGroup.style.display = "none";
+      }
+
+      // 5. SVG Aktualisieren (Ladungen)
+      renderCharges(x, qAirPart, qDielPart, dielWidth, platesWidth * (1 - x));
+      
+      // 6. SVG Aktualisieren (Feldlinien)
+      renderFieldLines(u);
+    }
+
+    function renderCharges(x, qAirPart, qDielPart, dielWidth, airWidth) {
+      const plateStartX = 100;
+      const chargeDensityFactor = 20; 
+      
+      const numAirCharges = Math.round(qAirPart * chargeDensityFactor);
+      const numDielCharges = Math.round(qDielPart * chargeDensityFactor);
+
+      let svgHtml = '';
+
+      // Luftbereich
+      for (let i = 0; i < numAirCharges; i++) {
+        const cx = plateStartX + dielWidth + (airWidth / Math.max(1, numAirCharges)) * (i + 0.5);
+        svgHtml += `
+          <g class="transition-all duration-500">
+            <text x="${cx}" y="75" text-anchor="middle" class="fill-red-600 font-bold text-lg select-none">+</text>
+            <text x="${cx}" y="235" text-anchor="middle" class="fill-blue-600 font-bold text-xl select-none">-</text>
+          </g>
+        `;
+      }
+
+      // Dielektrikum Bereich
+      for (let i = 0; i < numDielCharges; i++) {
+        const cx = plateStartX + (dielWidth / Math.max(1, numDielCharges)) * (i + 0.5);
+        svgHtml += `
+          <g class="transition-all duration-500">
+            <text x="${cx}" y="75" text-anchor="middle" class="fill-red-600 font-bold text-lg select-none">+</text>
+            <text x="${cx}" y="235" text-anchor="middle" class="fill-blue-600 font-bold text-xl select-none">-</text>
+          </g>
+        `;
+      }
+
+      dom.chargesGroup.innerHTML = svgHtml;
+    }
+
+    function renderFieldLines(u) {
+      const platesWidth = 400;
+      const plateStartX = 100;
+      const numLines = Math.round(u * 15);
+      
+      let svgHtml = '';
+      for (let i = 0; i < numLines; i++) {
+        const cx = plateStartX + (platesWidth / Math.max(1, numLines - 1)) * i;
+        svgHtml += `
+          <line 
+            x1="${cx}" y1="90" x2="${cx}" y2="210" 
+            stroke="#94a3b8" stroke-width="2" stroke-dasharray="6,6"
+            class="transition-all duration-500 opacity-60"
+          />
+        `;
+      }
+      
+      dom.fieldLinesGroup.innerHTML = svgHtml;
+    }
+
+    // --- Event Listener ---
+    dom.btnDisconnect.addEventListener('click', () => {
+      isConnected = false;
+      update();
+    });
+
+    dom.btnConnect.addEventListener('click', () => {
+      isConnected = true;
+      update();
+    });
+
+    dom.sliderFillLevel.addEventListener('input', (e) => {
+      fillLevel = Number(e.target.value);
+      update();
+    });
+
+    dom.sliderEpsilonR.addEventListener('input', (e) => {
+      epsilonR = Number(e.target.value);
+      update();
+    });
+
+    // Initialer Aufruf
+    update();
+
+  </script>
+</body>
+</html>

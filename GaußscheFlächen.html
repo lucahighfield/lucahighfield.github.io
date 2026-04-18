@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gaußsche Flächen in der Elektrostatik</title>
+    <!-- Tailwind CSS über CDN laden -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Zusätzliche Animationen für weiche Übergänge */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        .zoom-in-95 { animation: zoomIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes zoomIn { from { transform: scale(0.95); } to { transform: scale(1); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+
+    <div class="flex flex-col md:flex-row h-screen">
+      
+      <!-- LINKE SEITE: Interaktive SVG Simulation -->
+      <div class="flex-1 p-4 flex flex-col items-center justify-center bg-white border-r border-slate-200 shadow-sm z-10">
+        <h2 class="text-2xl font-bold mb-2 text-slate-800">Elektrisches Feld eines Dipols</h2>
+        <p class="text-sm text-slate-500 mb-6">Wähle eine Gaußsche Fläche (S₁ - S₄) aus, um den elektrischen Fluss zu analysieren.</p>
+        
+        <div class="relative w-full max-w-2xl aspect-square bg-white border border-slate-100 rounded-xl overflow-hidden shadow-inner flex items-center justify-center">
+          
+          <svg viewBox="-250 -250 500 500" class="w-full h-full">
+            <defs>
+              <!-- Pfeilspitze für Feldlinien -->
+              <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse">
+                <polygon points="0 0, 6 3, 0 6" fill="#1e3a8a" />
+              </marker>
+            </defs>
+
+            <!-- Gaußsche Flächen -->
+            <path id="surface-S4" onclick="toggleSurface('S4')"
+              d="M -160 -180 C -40 -220, 160 -220, 200 -80 C 230 20, 210 180, 100 220 C -20 250, -180 200, -210 100 C -240 0, -260 -140, -160 -180 Z"
+              fill="rgba(254, 240, 138, 0.4)" stroke="rgba(234, 179, 8, 1)" stroke-width="2" stroke-dasharray="6 4"
+              class="transition-opacity duration-300 cursor-pointer opacity-100 hover:opacity-80"
+            />
+            <path id="surface-S3" onclick="toggleSurface('S3')"
+              d="M -180 -20 C -120 -60, -80 -20, -70 30 C -60 80, -110 120, -150 100 C -190 80, -210 30, -180 -20 Z"
+              fill="rgba(250, 204, 21, 0.6)" stroke="rgba(202, 138, 4, 1)" stroke-width="2"
+              class="transition-opacity duration-300 cursor-pointer opacity-100 hover:opacity-80"
+            />
+            <path id="surface-S1" onclick="toggleSurface('S1')"
+              d="M -60 -110 C -40 -150, 40 -160, 80 -120 C 110 -90, 90 -40, 50 -20 C 10 -10, -70 -20, -90 -60 C -100 -80, -80 -90, -60 -110 Z"
+              fill="rgba(251, 146, 60, 0.6)" stroke="rgba(234, 88, 12, 1)" stroke-width="2"
+              class="transition-opacity duration-300 cursor-pointer opacity-100 hover:opacity-80"
+            />
+            <path id="surface-S2" onclick="toggleSurface('S2')"
+              d="M -70 50 C -20 30, 60 20, 100 60 C 120 80, 110 140, 60 160 C 10 180, -60 150, -90 110 C -110 80, -100 60, -70 50 Z"
+              fill="rgba(249, 115, 22, 0.6)" stroke="rgba(194, 65, 12, 1)" stroke-width="2"
+              class="transition-opacity duration-300 cursor-pointer opacity-100 hover:opacity-80"
+            />
+
+            <!-- Elektrische Feldlinien (werden via JS injiziert) -->
+            <g id="field-lines-container"></g>
+
+            <!-- Positive Ladung -->
+            <g transform="translate(0, -70)">
+              <circle cx="0" cy="0" r="14" fill="#ef4444" stroke="#b91c1c" stroke-width="2" />
+              <line x1="-6" y1="0" x2="6" y2="0" stroke="white" stroke-width="2" stroke-linecap="round" />
+              <line x1="0" y1="-6" x2="0" y2="6" stroke="white" stroke-width="2" stroke-linecap="round" />
+            </g>
+
+            <!-- Negative Ladung -->
+            <g transform="translate(0, 70)">
+              <circle cx="0" cy="0" r="14" fill="#3b82f6" stroke="#1d4ed8" stroke-width="2" />
+              <line x1="-6" y1="0" x2="6" y2="0" stroke="white" stroke-width="2" stroke-linecap="round" />
+            </g>
+
+            <!-- Beschriftungen -->
+            <text x="70" y="-130" font-size="14" font-weight="bold" fill="rgba(234, 88, 12, 1)" style="pointer-events:none;">S₁</text>
+            <text x="100" y="40" font-size="14" font-weight="bold" fill="rgba(194, 65, 12, 1)" style="pointer-events:none;">S₂</text>
+            <text x="-160" y="10" font-size="14" font-weight="bold" fill="rgba(202, 138, 4, 1)" style="pointer-events:none;">S₃</text>
+            <text x="180" y="-180" font-size="14" font-weight="bold" fill="rgba(234, 179, 8, 1)" style="pointer-events:none;">S₄</text>
+
+          </svg>
+        </div>
+      </div>
+
+      <!-- RECHTE SEITE: Physik Erklärungen & Steuerung -->
+      <div class="w-full md:w-1/3 bg-white p-6 overflow-y-auto border-l border-slate-200">
+        
+        <div class="mb-8">
+          <h1 class="text-3xl font-extrabold text-slate-900 mb-4">Gaußsches Gesetz</h1>
+          <div class="bg-slate-100 p-4 rounded-lg font-serif text-lg text-center shadow-sm border border-slate-200">
+            <span class="italic font-bold">Φ<sub>E</sub> = ∮ E · dA = Q<sub>eing</sub> / ε<sub>0</sub></span>
+          </div>
+          <p class="text-slate-600 mt-4 text-sm">
+            Der elektrische Fluss <span class="italic">Φ<sub>E</sub></span> durch eine geschlossene Oberfläche (Gaußsche Fläche) ist proportional zur eingeschlossenen Nettoladung <span class="italic">Q<sub>eing</sub></span>.
+          </p>
+        </div>
+
+        <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Flächenauswahl</h3>
+        
+        <!-- Buttons werden via JS generiert -->
+        <div id="buttons-container" class="grid grid-cols-2 gap-3 mb-8"></div>
+
+        <!-- Dynamisches Detail Panel -->
+        <div id="detail-panel" class="transition-all duration-500 rounded-xl border-2 p-5 border-dashed border-slate-200 bg-slate-50 items-center justify-center flex flex-col text-center min-h-[250px]">
+          <!-- Inhalt wird via JS aktualisiert -->
+        </div>
+
+      </div>
+    </div>
+
+    <!-- JavaScript Logik -->
+    <script>
+        // Datenstruktur
+        const surfaces = {
+            S1: {
+                id: 'S1', name: 'Fläche S₁', color: 'bg-orange-400',
+                qEnc: '+q', flux: '> 0',
+                description: 'Diese Fläche umschließt ausschließlich die positive Ladung. Gemäß dem Gaußschen Gesetz ist der Nettofluss nach außen gerichtet (positiv). Die Anzahl der aus der Fläche austretenden Feldlinien ist größer als die der eintretenden (hier: es treten nur Linien aus).'
+            },
+            S2: {
+                id: 'S2', name: 'Fläche S₂', color: 'bg-orange-500',
+                qEnc: '-q', flux: '< 0',
+                description: 'Diese Fläche umschließt ausschließlich die negative Ladung. Der Nettofluss ist nach innen gerichtet (negativ). Es treten nur Feldlinien in das umschlossene Volumen ein, keine aus ihm heraus.'
+            },
+            S3: {
+                id: 'S3', name: 'Fläche S₃', color: 'bg-yellow-400',
+                qEnc: '0', flux: '= 0',
+                description: 'Diese Fläche umschließt keine Ladung (Q_eing = 0). Im feldgefüllten Raum treten exakt so viele Feldlinien in das Volumen ein, wie auf der anderen Seite wieder austreten. Der Nettofluss ist exakt null.'
+            },
+            S4: {
+                id: 'S4', name: 'Fläche S₄', color: 'bg-yellow-200',
+                qEnc: '+q - q = 0', flux: '= 0',
+                description: 'Diese makroskopische Fläche umschließt den gesamten Dipol. Da die Summe der eingeschlossenen Ladungen (+q und -q) null ergibt, ist der Nettofluss durch diese Hüllfläche ebenfalls null.'
+            }
+        };
+
+        const fieldLines = [
+            { d1: "M 0 -70 L 0 0", d2: "M 0 0 L 0 70" },
+            { d1: "M 0 -70 A 50 70 0 0 1 50 0", d2: "M 50 0 A 50 70 0 0 1 0 70" },
+            { d1: "M 0 -70 A 90 120 0 0 1 90 0", d2: "M 90 0 A 90 120 0 0 1 0 70" },
+            { d1: "M 0 -70 A 150 180 0 0 1 150 0", d2: "M 150 0 A 150 180 0 0 1 0 70" },
+            { d1: "M 0 -70 A 50 70 0 0 0 -50 0", d2: "M -50 0 A 50 70 0 0 0 0 70" },
+            { d1: "M 0 -70 A 90 120 0 0 0 -90 0", d2: "M -90 0 A 90 120 0 0 0 0 70" },
+            { d1: "M 0 -70 A 150 180 0 0 0 -150 0", d2: "M -150 0 A 150 180 0 0 0 0 70" },
+            { d1: "M 0 -70 L 0 -150", d2: "M 0 -150 L 0 -220" },
+            { d1: "M 0 -70 Q 60 -120 80 -160", d2: "M 80 -160 Q 100 -200 120 -240" },
+            { d1: "M 0 -70 Q -60 -120 -80 -160", d2: "M -80 -160 Q -100 -200 -120 -240" },
+            { d1: "M 0 -70 Q 150 -100 200 -120", d2: "M 200 -120 Q 250 -140 300 -160" },
+            { d1: "M 0 -70 Q -150 -100 -200 -120", d2: "M -200 -120 Q -250 -140 -300 -160" },
+            { d1: "M 0 220 L 0 150", d2: "M 0 150 L 0 70" },
+            { d1: "M 120 240 Q 100 200 80 160", d2: "M 80 160 Q 60 120 0 70" },
+            { d1: "M -120 240 Q -100 200 -80 160", d2: "M -80 160 Q -60 120 0 70" },
+            { d1: "M 300 160 Q 250 140 200 120", d2: "M 200 120 Q 150 100 0 70" },
+            { d1: "M -300 160 Q -250 140 -200 120", d2: "M -200 120 Q -150 100 0 70" },
+        ];
+
+        // SVGs für Icons
+        const icons = {
+            info: `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300 mb-3"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
+            check: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`,
+            circle: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 opacity-50"><path d="M10.1 2.18a10 10 0 0 1 3.8 0"></path><path d="M13.9 21.82a10 10 0 0 1-3.8 0"></path><path d="M17.61 3.72a10 10 0 0 1 2.69 2.7"></path><path d="M2.69 17.61a10 10 0 0 1 2.7 2.69"></path><path d="M21.82 10.1a10 10 0 0 1 0 3.8"></path><path d="M2.18 13.9a10 10 0 0 1 0-3.8"></path><path d="M20.28 17.61a10 10 0 0 1-2.7 2.69"></path><path d="M6.39 3.72a10 10 0 0 1-2.69 2.7"></path></svg>`
+        };
+
+        let activeSurface = null;
+
+        // Initiale Darstellung
+        function init() {
+            // Feldlinien ins SVG injizieren
+            const linesHTML = fieldLines.map(line => `
+                <g>
+                    <path d="${line.d1}" fill="none" stroke="#1e3a8a" stroke-width="1.5" marker-end="url(#arrowhead)" />
+                    <path d="${line.d2}" fill="none" stroke="#1e3a8a" stroke-width="1.5" />
+                </g>
+            `).join('');
+            document.getElementById('field-lines-container').innerHTML = linesHTML;
+
+            render();
+        }
+
+        // State Update Funktion
+        function toggleSurface(id) {
+            activeSurface = (activeSurface === id) ? null : id;
+            render();
+        }
+
+        // UI Aktualisieren
+        function render() {
+            // 1. Buttons Rendern
+            const buttonsContainer = document.getElementById('buttons-container');
+            buttonsContainer.innerHTML = Object.keys(surfaces).map(key => {
+                const isActive = activeSurface === key;
+                const surf = surfaces[key];
+                const activeClass = isActive 
+                    ? `${surf.color} border-transparent text-white shadow-md transform scale-105` 
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50';
+                
+                return `
+                    <button onclick="toggleSurface('${key}')" class="flex items-center justify-center py-3 px-4 rounded-lg border-2 transition-all font-bold ${activeClass}">
+                        ${isActive ? icons.check : icons.circle}
+                        ${surf.name}
+                    </button>
+                `;
+            }).join('');
+
+            // 2. SVG Opacity anpassen
+            Object.keys(surfaces).forEach(key => {
+                const pathEl = document.getElementById(`surface-${key}`);
+                if (!activeSurface) {
+                    pathEl.setAttribute('class', 'transition-opacity duration-300 cursor-pointer opacity-100 hover:opacity-80');
+                } else {
+                    if (activeSurface === key) {
+                        pathEl.setAttribute('class', 'transition-opacity duration-300 cursor-pointer opacity-100 hover:opacity-80');
+                    } else {
+                        pathEl.setAttribute('class', 'transition-opacity duration-300 cursor-pointer opacity-20');
+                    }
+                }
+            });
+
+            // 3. Detail Panel aktualisieren
+            const detailPanel = document.getElementById('detail-panel');
+            if (!activeSurface) {
+                detailPanel.className = "transition-all duration-500 rounded-xl border-2 p-5 border-dashed border-slate-200 bg-slate-50 items-center justify-center flex flex-col text-center min-h-[250px]";
+                detailPanel.innerHTML = `
+                    ${icons.info}
+                    <p class="text-slate-500 font-medium">Klicke auf eine Fläche im Bild oder auf einen der Buttons, um die physikalische Analyse zu sehen.</p>
+                `;
+            } else {
+                const surf = surfaces[activeSurface];
+                detailPanel.className = "transition-all duration-500 rounded-xl border-2 p-5 border-blue-200 bg-blue-50/50 flex flex-col min-h-[250px] items-start text-left block";
+                detailPanel.innerHTML = `
+                    <div class="fade-in zoom-in-95 w-full">
+                        <div class="flex items-center mb-4">
+                            <div class="w-4 h-4 rounded-full mr-3 ${surf.color}"></div>
+                            <h3 class="text-xl font-bold text-slate-800">${surf.name}</h3>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div class="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                                <span class="block text-xs text-slate-400 font-bold uppercase mb-1">Eingeschlossene Ladung</span>
+                                <span class="text-xl font-mono font-bold text-slate-800">Q<sub>eing</sub> = ${surf.qEnc}</span>
+                            </div>
+                            <div class="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                                <span class="block text-xs text-slate-400 font-bold uppercase mb-1">Elektrischer Fluss</span>
+                                <span class="text-xl font-mono font-bold text-slate-800">Φ<sub>E</sub> ${surf.flux}</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-lg border border-blue-100 shadow-sm mb-4">
+                            <p class="text-slate-700 leading-relaxed text-sm">
+                                ${surf.description}
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // App starten
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

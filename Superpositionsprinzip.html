@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Superpositionsprinzip Simulation</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-50">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    const App = () => {
+      const svgRef = useRef(null);
+
+      const [qTest, setQTest] = useState({ x: 400, y: 150, charge: 1, id: 'qTest' });
+      const [q1, setQ1] = useState({ x: 200, y: 450, charge: -2, id: 'q1' }); 
+      const [q2, setQ2] = useState({ x: 600, y: 450, charge: 2, id: 'q2' });  
+
+      const [draggingNode, setDraggingNode] = useState(null);
+
+      const [showComponents, setShowComponents] = useState(true);
+      const [showParallelogram, setShowParallelogram] = useState(true);
+      const [showResultant, setShowResultant] = useState(true);
+      const [showLines, setShowLines] = useState(true);
+
+      const K_SCALE = 1800000; 
+
+      const calculateForce = (source, target) => {
+        const dx = target.x - source.x;
+        const dy = target.y - source.y;
+        const distSq = dx * dx + dy * dy;
+        const dist = Math.sqrt(distSq);
+        
+        const effectiveDist = Math.max(dist, 45); 
+        const effectiveDistSq = effectiveDist * effectiveDist;
+
+        const forceMag = (K_SCALE * source.charge * target.charge) / effectiveDistSq;
+        
+        const fx = (dx / dist) * forceMag;
+        const fy = (dy / dist) * forceMag;
+
+        return { fx, fy, mag: Math.abs(forceMag) };
+      };
+
+      const f1 = calculateForce(q1, qTest);
+      const f2 = calculateForce(q2, qTest);
+      
+      const fRes = {
+        fx: f1.fx + f2.fx,
+        fy: f1.fy + f2.fy,
+        mag: Math.sqrt(Math.pow(f1.fx + f2.fx, 2) + Math.pow(f1.fy + f2.fy, 2))
+      };
+
+      const isEquilibrium = fRes.mag < 4.0;
+
+      const handlePointerDown = (e, node) => {
+        setDraggingNode(node);
+        e.target.setPointerCapture(e.pointerId);
+      };
+
+      const handlePointerMove = (e) => {
+        if (!draggingNode || !svgRef.current) return;
+
+        const rect = svgRef.current.getBoundingClientRect();
+        const x = Math.max(20, Math.min(rect.width - 20, e.clientX - rect.left));
+        const y = Math.max(20, Math.min(rect.height - 20, e.clientY - rect.top));
+
+        if (draggingNode.id === 'qTest') setQTest({ ...qTest, x, y });
+        else if (draggingNode.id === 'q1') setQ1({ ...q1, x, y });
+        else if (draggingNode.id === 'q2') setQ2({ ...q2, x, y });
+      };
+
+      const handlePointerUp = () => {
+        setDraggingNode(null);
+      };
+
+      const renderArrowMarker = (id, color) => (
+        <marker id={id} markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill={color} />
+        </marker>
+      );
+
+      return (
+        <div className="flex flex-col md:flex-row w-full h-screen bg-gray-50 text-gray-800 font-sans">
+          <div className="flex-1 p-4 flex flex-col items-center justify-center h-full relative">
+            <div className="mb-4 text-center mt-4 md:mt-0">
+              <h1 className="text-2xl font-bold text-gray-800">Superpositionsprinzip (Coulomb-Gesetz)</h1>
+              <p className="text-gray-600 text-sm">Ziehe die Ladungen, um das Kräfteparallelogramm in Echtzeit zu beobachten.</p>
+            </div>
+
+            <div className="bg-white shadow-xl rounded-xl border border-gray-200 overflow-hidden w-full max-w-4xl relative" style={{ height: '600px' }}>
+              
+              {isEquilibrium && (
+                <div className="absolute top-6 left-1/2 transform -translate-x-1/2 bg-green-100 border-2 border-green-500 text-green-800 px-6 py-2 rounded-full font-bold shadow-lg z-10 flex items-center space-x-2 animate-pulse">
+                  <span>Kräftegleichgewicht: F_res ≈ 0</span>
+                </div>
+              )}
+
+              <svg 
+                ref={svgRef}
+                className="w-full h-full cursor-crosshair touch-none"
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerUp}
+              >
+                <defs>
+                  {renderArrowMarker('arrow-f1', '#10B981')} 
+                  {renderArrowMarker('arrow-f2', '#3B82F6')} 
+                  {renderArrowMarker('arrow-fres', '#EF4444')} 
+                </defs>
+
+                <g className="text-gray-100" strokeWidth="1">
+                  {[...Array(20)].map((_, i) => (
+                    <line key={`v${i}`} x1={i * 50} y1="0" x2={i * 50} y2="1000" stroke="currentColor" />
+                  ))}
+                  {[...Array(20)].map((_, i) => (
+                    <line key={`h${i}`} x1="0" y1={i * 50} x2="1000" y2={i * 50} stroke="currentColor" />
+                  ))}
+                </g>
+
+                {showLines && (
+                  <g stroke="#9CA3AF" strokeWidth="1.5" strokeDasharray="5,5">
+                    <line x1={q1.x} y1={q1.y} x2={qTest.x} y2={qTest.y} />
+                    <line x1={q2.x} y1={q2.y} x2={qTest.x} y2={qTest.y} />
+                  </g>
+                )}
+
+                {showParallelogram && showComponents && showResultant && (
+                  <g stroke="#D1D5DB" strokeWidth="1.5" strokeDasharray="4,4" fill="none">
+                    <line 
+                      x1={qTest.x + f1.fx} y1={qTest.y + f1.fy} 
+                      x2={qTest.x + fRes.fx} y2={qTest.y + fRes.fy} 
+                    />
+                    <line 
+                      x1={qTest.x + f2.fx} y1={qTest.y + f2.fy} 
+                      x2={qTest.x + fRes.fx} y2={qTest.y + fRes.fy} 
+                    />
+                  </g>
+                )}
+
+                {showComponents && (
+                  <>
+                    <line 
+                      x1={qTest.x} y1={qTest.y} 
+                      x2={qTest.x + f1.fx} y2={qTest.y + f1.fy} 
+                      stroke="#10B981" strokeWidth="3" markerEnd="url(#arrow-f1)" 
+                    />
+                    <text x={qTest.x + f1.fx + 10} y={qTest.y + f1.fy} fill="#10B981" fontSize="14" fontWeight="bold">F₁</text>
+
+                    <line 
+                      x1={qTest.x} y1={qTest.y} 
+                      x2={qTest.x + f2.fx} y2={qTest.y + f2.fy} 
+                      stroke="#3B82F6" strokeWidth="3" markerEnd="url(#arrow-f2)" 
+                    />
+                    <text x={qTest.x + f2.fx + 10} y={qTest.y + f2.fy} fill="#3B82F6" fontSize="14" fontWeight="bold">F₂</text>
+                  </>
+                )}
+
+                {showResultant && !isEquilibrium && (
+                  <>
+                    <line 
+                      x1={qTest.x} y1={qTest.y} 
+                      x2={qTest.x + fRes.fx} y2={qTest.y + fRes.fy} 
+                      stroke="#EF4444" strokeWidth="4" markerEnd="url(#arrow-fres)" 
+                    />
+                    <text x={qTest.x + fRes.fx + 15} y={qTest.y + fRes.fy - 10} fill="#EF4444" fontSize="16" fontWeight="bold">F_res</text>
+                  </>
+                )}
+
+                <g transform={`translate(${q1.x}, ${q1.y})`} className="cursor-pointer" onPointerDown={(e) => handlePointerDown(e, q1)}>
+                  <circle r="16" fill={q1.charge < 0 ? "#3B82F6" : "#EF4444"} stroke="#1E3A8A" strokeWidth="2" />
+                  <text x="0" y="5" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" pointerEvents="none">
+                    {q1.charge < 0 ? "-" : "+"}
+                  </text>
+                  <text x="0" y="35" textAnchor="middle" fill="#4B5563" fontSize="14" fontWeight="bold">Q₁</text>
+                </g>
+
+                <g transform={`translate(${q2.x}, ${q2.y})`} className="cursor-pointer" onPointerDown={(e) => handlePointerDown(e, q2)}>
+                  <circle r="16" fill={q2.charge < 0 ? "#3B82F6" : "#EF4444"} stroke="#7F1D1D" strokeWidth="2" />
+                  <text x="0" y="5" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" pointerEvents="none">
+                    {q2.charge < 0 ? "-" : "+"}
+                  </text>
+                  <text x="0" y="35" textAnchor="middle" fill="#4B5563" fontSize="14" fontWeight="bold">Q₂</text>
+                </g>
+
+                <g transform={`translate(${qTest.x}, ${qTest.y})`} className="cursor-pointer" onPointerDown={(e) => handlePointerDown(e, qTest)}>
+                  {isEquilibrium && <circle r="20" fill="none" stroke="#22C55E" strokeWidth="4" className="animate-ping opacity-75" />}
+                  <circle r="12" fill={qTest.charge < 0 ? "#93C5FD" : "#FCA5A5"} stroke={isEquilibrium ? "#22C55E" : "#991B1B"} strokeWidth={isEquilibrium ? "4" : "2"} />
+                  <text x="0" y="4" textAnchor="middle" fill="#7F1D1D" fontSize="12" fontWeight="bold" pointerEvents="none">
+                    {qTest.charge < 0 ? "-" : "+"}
+                  </text>
+                  <text x="15" y="-15" fill={isEquilibrium ? "#166534" : "#4B5563"} fontSize="14" fontWeight="bold">q (Test)</text>
+                </g>
+
+              </svg>
+            </div>
+          </div>
+
+          <div className="w-full md:w-80 bg-white shadow-xl md:h-screen p-6 overflow-y-auto border-l border-gray-200">
+            <h2 className="text-xl font-bold mb-6 border-b pb-2 text-gray-800">Parameter</h2>
+            
+            <div className="mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
+              <label className="block text-sm font-semibold mb-2 text-gray-700">Ladung Q₁ <span className="text-gray-500 font-normal">({q1.charge} µC)</span></label>
+              <input type="range" min="-5" max="5" step="1" value={q1.charge} onChange={(e) => setQ1({...q1, charge: parseFloat(e.target.value)})} className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer" />
+            </div>
+
+            <div className="mb-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
+              <label className="block text-sm font-semibold mb-2 text-gray-700">Ladung Q₂ <span className="text-gray-500 font-normal">({q2.charge} µC)</span></label>
+              <input type="range" min="-5" max="5" step="1" value={q2.charge} onChange={(e) => setQ2({...q2, charge: parseFloat(e.target.value)})} className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer" />
+            </div>
+
+            <div className="mb-8 p-4 rounded-lg bg-gray-50 border border-gray-200">
+              <label className="block text-sm font-semibold mb-2 text-gray-700">Testladung q <span className="text-gray-500 font-normal">({qTest.charge} µC)</span></label>
+              <input type="range" min="-2" max="2" step="1" value={qTest.charge} onChange={(e) => { const val = parseFloat(e.target.value); setQTest({...qTest, charge: val === 0 ? 1 : val}); }} className="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer" />
+            </div>
+
+            <h2 className="text-xl font-bold mb-4 border-b pb-2 text-gray-800">Darstellung</h2>
+            
+            <div className="space-y-3 mb-8">
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input type="checkbox" checked={showComponents} onChange={() => setShowComponents(!showComponents)} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                <span className="text-gray-700 font-medium">Einzelkräfte (F₁, F₂)</span>
+              </label>
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input type="checkbox" checked={showResultant} onChange={() => setShowResultant(!showResultant)} className="w-5 h-5 text-red-600 rounded border-gray-300 focus:ring-red-500" />
+                <span className="text-gray-700 font-medium text-red-600">Resultierende (F_res)</span>
+              </label>
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input type="checkbox" checked={showParallelogram} onChange={() => setShowParallelogram(!showParallelogram)} className="w-5 h-5 text-gray-600 rounded border-gray-300" />
+                <span className="text-gray-700 font-medium">Parallelogramm</span>
+              </label>
+              <label className="flex items-center space-x-3 cursor-pointer">
+                <input type="checkbox" checked={showLines} onChange={() => setShowLines(!showLines)} className="w-5 h-5 text-gray-600 rounded border-gray-300" />
+                <span className="text-gray-700 font-medium">Wirkungslinien</span>
+              </label>
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800">
+              <h3 className="font-bold mb-1">Didaktischer Hinweis:</h3>
+              <p className="mb-2">Die Vektoraddition gehorcht dem Superpositionsprinzip:</p>
+              <div className="font-mono bg-white p-2 rounded border border-blue-200 text-center mb-2">
+                F<sub>res</sub> = F₁ + F₂
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

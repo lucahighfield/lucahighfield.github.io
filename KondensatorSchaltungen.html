@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Universeller Kondensator-Baukasten</title>
+  
+  <!-- Tailwind CSS für das Styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM (Development Versionen für den Browser) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  
+  <!-- Babel zum Kompilieren von JSX im Browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50">
+  <!-- Hier wird die React-App gerendert -->
+  <div id="root"></div>
+
+  <!-- React Code -->
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    // --- Integrierte Icon Komponenten (Ersatz für lucide-react) ---
+    const Icon = ({ children, className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className || "w-4 h-4"}>
+        {children}
+      </svg>
+    );
+
+    const Plus = ({ className }) => <Icon className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></Icon>;
+    const Trash2 = ({ className }) => <Icon className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></Icon>;
+    const SplitSquareHorizontal = ({ className }) => <Icon className={className}><path d="M8 19H5c-1 0-2-1-2-2V7c0-1 1-2 2-2h3"></path><path d="M16 5h3c1 0 2 1 2 2v10c0 1-1 2-2 2h-3"></path><line x1="12" x2="12" y1="4" y2="20"></line></Icon>;
+    const Layers = ({ className }) => <Icon className={className}><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 12 12 17 22 12"></polyline><polyline points="2 17 12 22 22 17"></polyline></Icon>;
+    const Zap = ({ className }) => <Icon className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></Icon>;
+    const RotateCcw = ({ className }) => <Icon className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></Icon>;
+    const Info = ({ className }) => <Icon className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="16" y2="12"></line><line x1="12" x2="12.01" y1="8" y2="8"></line></Icon>;
+    const Calculator = ({ className }) => <Icon className={className}><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="16" x2="16" y1="14" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></Icon>;
+    const Lightbulb = ({ className }) => <Icon className={className}><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5"></path><path d="M9 18h6"></path><path d="M10 22h4"></path></Icon>;
+
+
+    // --- Hauptkomponente ---
+    const KondensatorBaukasten = () => {
+      // Der Schaltkreis ist ein Array von "Serien-Blöcken".
+      // Jeder Block enthält ein Array von Kondensatoren, die zueinander parallel geschaltet sind.
+      const [circuit, setCircuit] = useState([
+        [ { id: 'c1', value: 10 }, { id: 'c2', value: 20 } ]
+      ]);
+      
+      const [nextId, setNextId] = useState(3);
+
+      // --- Presets ---
+      const setPresetParallel = () => {
+        setCircuit([[ { id: 'c1', value: 10 }, { id: 'c2', value: 20 }, { id: 'c3', value: 30 } ]]);
+        setNextId(4);
+      };
+
+      const setPresetSeries = () => {
+        setCircuit([[ { id: 'c1', value: 10 } ], [ { id: 'c2', value: 20 } ], [ { id: 'c3', value: 30 } ]]);
+        setNextId(4);
+      };
+
+      const setPresetMixed = () => {
+        setCircuit([
+          [ { id: 'c1', value: 10 }, { id: 'c2', value: 10 } ], 
+          [ { id: 'c3', value: 20 } ]
+        ]);
+        setNextId(4);
+      };
+
+      // --- Manipulation des Schaltkreises ---
+      const addSeriesBlock = () => {
+        if (circuit.length < 5) {
+          setCircuit([...circuit, [{ id: `c${nextId}`, value: 10 }]]);
+          setNextId(nextId + 1);
+        }
+      };
+
+      const addParallelCap = (blockIndex) => {
+        if (circuit[blockIndex].length < 4) {
+          const newCircuit = [...circuit];
+          newCircuit[blockIndex].push({ id: `c${nextId}`, value: 10 });
+          setCircuit(newCircuit);
+          setNextId(nextId + 1);
+        }
+      };
+
+      const removeCap = (blockIndex, capIndex) => {
+        const newCircuit = [...circuit];
+        newCircuit[blockIndex].splice(capIndex, 1);
+        
+        // Wenn der Block leer ist, entferne den ganzen Block
+        if (newCircuit[blockIndex].length === 0) {
+          newCircuit.splice(blockIndex, 1);
+        }
+        
+        // Mindestens ein Kondensator muss übrig bleiben
+        if (newCircuit.length === 0) {
+          newCircuit.push([{ id: `c${nextId}`, value: 10 }]);
+          setNextId(nextId + 1);
+        }
+        
+        setCircuit(newCircuit);
+      };
+
+      const updateCapValue = (blockIndex, capIndex, newValue) => {
+        const newCircuit = [...circuit];
+        newCircuit[blockIndex][capIndex].value = Number(newValue);
+        setCircuit(newCircuit);
+      };
+
+      // --- Berechnungen ---
+      const calculations = useMemo(() => {
+        const blockCaps = circuit.map(block => 
+          block.reduce((sum, cap) => sum + cap.value, 0)
+        );
+
+        const sumInv = blockCaps.reduce((sum, c) => sum + (c > 0 ? 1 / c : 0), 0);
+        const totalCap = sumInv > 0 ? 1 / sumInv : 0;
+
+        const isPureParallel = circuit.length === 1 && circuit[0].length > 1;
+        const isPureSeries = circuit.length > 1 && circuit.every(b => b.length === 1);
+        const isMixed = circuit.length > 1 && circuit.some(b => b.length > 1);
+        const isSingle = circuit.length === 1 && circuit[0].length === 1;
+
+        return { blockCaps, totalCap, isPureParallel, isPureSeries, isMixed, isSingle };
+      }, [circuit]);
+
+      // --- SVG Renderer ---
+      const renderCircuitSVG = () => {
+        const blockWidth = 140;
+        const totalWidth = circuit.length * blockWidth + 100;
+        const centerY = 200;
+        const ySpacing = 65;
+
+        return (
+          <svg viewBox={`0 0 ${Math.max(totalWidth, 600)} 400`} className="w-full h-full min-h-[300px]" preserveAspectRatio="xMidYMid meet">
+            
+            {/* Hauptanschlüsse Links und Rechts */}
+            <line x1="20" y1={centerY} x2="50" y2={centerY} stroke="#334155" strokeWidth="3" />
+            <circle cx="20" cy={centerY} r="5" fill="#ef4444" />
+            <text x="15" y={centerY - 15} className="fill-red-600 font-bold text-lg">+</text>
+
+            <line x1={50 + circuit.length * blockWidth} y1={centerY} x2={80 + circuit.length * blockWidth} y2={centerY} stroke="#334155" strokeWidth="3" />
+            <circle cx={80 + circuit.length * blockWidth} cy={centerY} r="5" fill="#3b82f6" />
+            <text x={75 + circuit.length * blockWidth} y={centerY - 15} className="fill-blue-600 font-bold text-lg">-</text>
+
+            {/* Spannungs-Pfeil */}
+            <g className="opacity-60">
+              <path d={`M 20 ${centerY + 140} L ${80 + circuit.length * blockWidth} ${centerY + 140}`} stroke="#334155" strokeWidth="2" strokeDasharray="4,4" />
+              <path d={`M 20 ${centerY + 130} L 20 ${centerY + 150}`} stroke="#334155" strokeWidth="2" />
+              <path d={`M ${80 + circuit.length * blockWidth} ${centerY + 130} L ${80 + circuit.length * blockWidth} ${centerY + 150}`} stroke="#334155" strokeWidth="2" />
+              <text x={40 + (circuit.length * blockWidth) / 2} y={centerY + 135} textAnchor="middle" className="fill-slate-700 font-bold italic text-lg">U_ges</text>
+            </g>
+
+            {circuit.map((block, bIdx) => {
+              const startX = 50 + bIdx * blockWidth;
+              const endX = startX + blockWidth;
+              const midX = startX + blockWidth / 2;
+              const numCaps = block.length;
+              
+              const blockHeight = (numCaps - 1) * ySpacing;
+              const topY = centerY - blockHeight / 2;
+              const bottomY = centerY + blockHeight / 2;
+
+              return (
+                <g key={`block-${bIdx}`} className="transition-all duration-300">
+                  {bIdx < circuit.length - 1 && (
+                    <line x1={endX} y1={centerY} x2={endX + blockWidth} y2={centerY} stroke="#334155" strokeWidth="3" />
+                  )}
+
+                  {numCaps > 1 ? (
+                    <>
+                      <line x1={startX + 20} y1={topY} x2={startX + 20} y2={bottomY} stroke="#334155" strokeWidth="3" />
+                      <line x1={endX - 20} y1={topY} x2={endX - 20} y2={bottomY} stroke="#334155" strokeWidth="3" />
+                      <line x1={startX} y1={centerY} x2={startX + 20} y2={centerY} stroke="#334155" strokeWidth="3" />
+                      <line x1={endX - 20} y1={centerY} x2={endX} y2={centerY} stroke="#334155" strokeWidth="3" />
+                    </>
+                  ) : (
+                    <>
+                      <line x1={startX} y1={centerY} x2={startX + 20} y2={centerY} stroke="#334155" strokeWidth="3" />
+                      <line x1={endX - 20} y1={centerY} x2={endX} y2={centerY} stroke="#334155" strokeWidth="3" />
+                    </>
+                  )}
+
+                  {block.map((cap, cIdx) => {
+                    const y = numCaps === 1 ? centerY : topY + cIdx * ySpacing;
+                    
+                    return (
+                      <g key={cap.id} className="transition-all duration-300">
+                        <line x1={startX + 20} y1={y} x2={midX - 10} y2={y} stroke="#334155" strokeWidth="3" />
+                        <line x1={midX + 10} y1={y} x2={endX - 20} y2={y} stroke="#334155" strokeWidth="3" />
+                        
+                        <line x1={midX - 10} y1={y - 15} x2={midX - 10} y2={y + 15} stroke="#0f172a" strokeWidth="4" />
+                        <line x1={midX + 10} y1={y - 15} x2={midX + 10} y2={y + 15} stroke="#0f172a" strokeWidth="4" />
+                        
+                        <text x={midX} y={y - 20} textAnchor="middle" className="fill-slate-800 font-bold text-sm">C{cap.id.replace('c','')}</text>
+                        <text x={midX} y={y + 25} textAnchor="middle" className="fill-blue-600 text-xs font-mono">{cap.value} µF</text>
+                        
+                        <text x={midX - 22} y={y - 5} className="fill-red-500 text-[10px] font-bold">+</text>
+                        <text x={midX + 15} y={y - 5} className="fill-blue-500 text-[10px] font-bold">-</text>
+
+                        <foreignObject x={midX + 18} y={y - 32} width="24" height="24">
+                          <button 
+                            onClick={() => removeCap(bIdx, cIdx)}
+                            className="w-full h-full rounded-full bg-white/80 hover:bg-red-100 border border-slate-200 hover:border-red-300 flex items-center justify-center text-slate-400 hover:text-red-600 transition-colors shadow-sm cursor-pointer"
+                            title="Kondensator löschen"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </foreignObject>
+                      </g>
+                    );
+                  })}
+
+                  {numCaps < 4 && (
+                    <foreignObject x={midX - 15} y={bottomY + 30} width="30" height="30">
+                      <button 
+                        onClick={() => addParallelCap(bIdx)}
+                        className="w-full h-full rounded-full bg-slate-100 hover:bg-blue-100 border border-slate-300 hover:border-blue-400 flex items-center justify-center text-slate-500 hover:text-blue-600 transition-colors shadow-sm cursor-pointer"
+                        title="Parallelkondensator hinzufügen"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </foreignObject>
+                  )}
+                </g>
+              );
+            })}
+
+            {circuit.length < 5 && (
+              <foreignObject x={80 + circuit.length * blockWidth - 15} y={centerY - 15} width="30" height="30">
+                <button 
+                  onClick={addSeriesBlock}
+                  className="w-full h-full rounded-full bg-slate-100 hover:bg-emerald-100 border border-slate-300 hover:border-emerald-400 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-colors shadow-sm cursor-pointer"
+                  title="In Serie erweitern"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </foreignObject>
+            )}
+          </svg>
+        );
+      };
+
+      return (
+        <div className="flex flex-col h-full bg-slate-50 font-sans text-slate-800 p-4 md:p-6 min-h-[900px]">
+          
+          <header className="mb-6 pb-4 border-b-2 border-slate-200">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
+              Universeller Kondensator-Baukasten
+            </h1>
+            <p className="text-base md:text-lg text-slate-600">Freies Erstellen von Parallel-, Serien- und gemischten Schaltungen</p>
+          </header>
+
+          <div className="flex flex-col xl:flex-row gap-6 h-full">
+            
+            <div className="flex-1 flex flex-col gap-4">
+              
+              <div className="flex flex-wrap gap-2 bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+                <span className="flex items-center text-sm font-bold text-slate-500 mr-2 uppercase tracking-wide">Presets:</span>
+                <button onClick={setPresetParallel} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-sm font-medium transition-colors">
+                  <SplitSquareHorizontal className="w-4 h-4 rotate-90" /> Nur Parallel
+                </button>
+                <button onClick={setPresetSeries} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-sm font-medium transition-colors">
+                  <Layers className="w-4 h-4 rotate-90" /> Nur Serie
+                </button>
+                <button onClick={setPresetMixed} className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-sm font-medium transition-colors">
+                  <Zap className="w-4 h-4" /> Gemischt
+                </button>
+                <button onClick={() => { setCircuit([[{id:'c1', value:10}]]); setNextId(2); }} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors">
+                  <RotateCcw className="w-4 h-4" /> Reset
+                </button>
+              </div>
+
+              <div className="bg-white border border-slate-200 shadow-md rounded-xl overflow-x-auto overflow-y-hidden relative flex items-center min-h-[400px]">
+                {renderCircuitSVG()}
+                
+                <div className="absolute top-4 left-4 right-4 flex justify-center pointer-events-none">
+                  <div className="bg-white/90 backdrop-blur-sm border border-slate-200 shadow-sm px-4 py-2 rounded-full text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-blue-500" />
+                    {calculations.isPureParallel && "Reine Parallelschaltung: U ist überall identisch. C addiert sich."}
+                    {calculations.isPureSeries && "Reine Serienschaltung: Q ist auf allen Kondensatoren gleich. 1/C addiert sich."}
+                    {calculations.isMixed && "Gemischte Schaltung: Erst parallele Blöcke zusammenfassen, dann die Reihe berechnen!"}
+                    {calculations.isSingle && "Ein einzelner Kondensator. Füge weitere hinzu!"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 shadow-md rounded-xl p-5">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
+                  <Calculator className="w-5 h-5 text-indigo-500" />
+                  Werte anpassen
+                </h3>
+                
+                <div className="flex gap-4 overflow-x-auto pb-2">
+                  {circuit.map((block, bIdx) => (
+                    <div key={`edit-block-${bIdx}`} className="min-w-[200px] bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-3">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        Block {bIdx + 1} {block.length > 1 ? '(Parallel)' : ''}
+                      </div>
+                      
+                      {block.map((cap, cIdx) => (
+                        <div key={`edit-cap-${cap.id}`} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-bold text-slate-700">C{cap.id.replace('c','')}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">{cap.value} µF</span>
+                              <button 
+                                onClick={() => removeCap(bIdx, cIdx)}
+                                className="text-slate-400 hover:text-red-500 transition-colors p-1 bg-slate-50 hover:bg-red-50 rounded"
+                                title="Entfernen"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <input 
+                            type="range" min="1" max="100" step="1"
+                            value={cap.value}
+                            onChange={(e) => updateCapValue(bIdx, cIdx, e.target.value)}
+                            className="w-full accent-blue-600 cursor-pointer"
+                          />
+                          <div className="text-[10px] text-slate-600 mt-2 leading-tight bg-slate-50 p-2 rounded border border-slate-100 shadow-sm">
+                            {block.length > 1 
+                              ? <span><strong className="text-blue-600">Parallel-Effekt:</strong> Lineare Addition (1:1). Erhöhung wirkt direkt auf C<sub>ges</sub>.</span> 
+                              : <span><strong className="text-emerald-600">Serien-Effekt:</strong> Reziproke Addition. Erhöhung flacht ab. C<sub>ges</sub> bleibt stets kleiner als der kleinste Kondensator.</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full xl:w-[450px] flex flex-col gap-4">
+              <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white shadow-xl flex-1 flex flex-col h-full relative overflow-hidden">
+                <Zap className="absolute -right-10 -bottom-10 w-48 h-48 text-slate-700 opacity-20" />
+                
+                <h3 className="text-xl font-bold mb-6 border-b border-slate-700 pb-3 flex items-center gap-2">
+                  Berechnungsweg
+                </h3>
+
+                <div className="flex-1 flex flex-col gap-6 relative z-10 overflow-y-auto pr-2">
+                  
+                  {(calculations.isMixed || calculations.isPureParallel) && (
+                    <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                      <div className="text-emerald-400 text-sm font-bold uppercase tracking-wide mb-3">Schritt 1: Parallelschaltungen</div>
+                      <p className="text-slate-300 text-sm mb-3">
+                        Für parallel geschaltete Kondensatoren gilt: <br/>
+                        <span className="font-serif text-lg text-white">C<sub>p</sub> = Σ C<sub>i</sub></span>
+                      </p>
+                      
+                      <div className="space-y-2 font-mono text-sm">
+                        {circuit.map((block, i) => {
+                          if (block.length > 1) {
+                            return (
+                              <div key={i} className="flex flex-col gap-1 border-l-2 border-emerald-500 pl-3">
+                                <span className="text-slate-400">Block {i+1}:</span>
+                                <span className="text-white">C<sub>p{i+1}</sub> = {block.map(c => c.value).join(' + ')}</span>
+                                <span className="text-emerald-300 font-bold">C<sub>p{i+1}</sub> = {calculations.blockCaps[i]} µF</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {(circuit.length > 1) && (
+                    <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                      <div className="text-blue-400 text-sm font-bold uppercase tracking-wide mb-3">Schritt 2: Serienschaltung</div>
+                      <p className="text-slate-300 text-sm mb-3">
+                        Für in Reihe geschaltete Blöcke gilt: <br/>
+                        <span className="font-serif text-lg text-white">1 / C<sub>ges</sub> = Σ (1 / C<sub>i</sub>)</span>
+                      </p>
+                      
+                      <div className="font-mono text-sm space-y-3 border-l-2 border-blue-500 pl-3">
+                        <div className="text-white overflow-x-auto pb-2">
+                          1 / C<sub>ges</sub> = {calculations.blockCaps.map((c, i) => `1/${c}`).join(' + ')}
+                        </div>
+                        
+                        <div className="text-slate-400 text-xs overflow-x-auto pb-1">
+                          1 / C<sub>ges</sub> ≈ {calculations.blockCaps.map(c => (1/c).toFixed(3)).join(' + ')}
+                        </div>
+                        
+                        <div className="text-white">
+                          1 / C<sub>ges</sub> = {(1/calculations.totalCap).toFixed(4)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-auto pt-6">
+                    <div className="text-slate-400 text-sm mb-2 text-center uppercase tracking-widest font-bold">Gesamtkapazität</div>
+                    <div className="bg-white/10 p-4 rounded-xl border border-white/20 text-center shadow-inner">
+                      <div className="font-serif text-4xl font-bold text-white tracking-tight">
+                        {calculations.totalCap.toFixed(2)} <span className="text-2xl text-blue-300">µF</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 bg-indigo-900/40 p-4 rounded-xl border border-indigo-500/30">
+                    <h4 className="text-indigo-300 font-bold text-sm mb-3 flex items-center gap-2">
+                      <Lightbulb className="w-4 h-4" /> Fokus: Auswirkungen
+                    </h4>
+                    <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
+                      <p>
+                        <strong className="text-blue-300">In Parallelschaltungen:</strong> Jeder Kondensator addiert seine Kapazität direkt. Vergrößern Sie einen Wert extrem, dominiert er die Schaltung und <span className="text-white">C<sub>ges</sub> wächst unbegrenzt mit</span>.
+                      </p>
+                      <p>
+                        <strong className="text-emerald-300">In Serienschaltungen:</strong> Ein großer Kondensator wirkt zunehmend wie ein Kurzschluss (er setzt der Ladung kaum noch Widerstand entgegen). Vergrößern Sie seinen Wert extrem, nähert sich <span className="text-white">C<sub>ges</sub> asymptotisch den restlichen Kondensatoren an</span>. Es gilt stets: C<sub>ges</sub> wird <span className="underline">niemals</span> größer als die kleinste Einzelkapazität der Reihe!
+                      </p>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // React-App in das DOM einhängen
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<KondensatorBaukasten />);
+  </script>
+</body>
+</html>

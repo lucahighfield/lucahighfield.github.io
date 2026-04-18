@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Physik — Visualisierungen</title>
+  <title>Experimentalphysik 2 — Visualisierung</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -32,7 +32,6 @@
       overflow-x: hidden;
     }
 
-    /* Subtle background decoration */
     body::before {
       content: '';
       position: fixed;
@@ -64,7 +63,6 @@
       z-index: 1;
     }
 
-    /* ===== HEADER ===== */
     header {
       margin-bottom: 3.5rem;
       padding-bottom: 2rem;
@@ -114,7 +112,6 @@
       margin-top: 0.5rem;
     }
 
-    /* ===== CHOICE CARDS ===== */
     .choice-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -212,7 +209,6 @@
       transform: translateX(2px);
     }
 
-    /* ===== CONTENT VIEW ===== */
     .back-button {
       display: inline-flex;
       align-items: center;
@@ -415,14 +411,12 @@
     // Map section ID → repo folder name (case-sensitive!)
     const SECTIONS = {
       vorlesungen: 'Vorlesungen',
-      uebungen: 'Übungen'
+      uebungen: 'Uebungen'
     };
     // ===========================
 
     const API_BASE = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents`;
 
-    // Turn a filename into a readable title
-    // "GaußscheFlächen.html" → "Gaußsche Flächen"
     function prettifyName(filename) {
       let name = filename.replace(/\.html?$/i, '');
       name = name.replace(/([a-zäöüß])([A-ZÄÖÜ])/g, '$1 $2');
@@ -430,18 +424,14 @@
       return name.trim();
     }
 
-    // Sort: "VL1", "VL2", "VL10" → numerically correct
     function naturalSort(a, b) {
       return a.localeCompare(b, 'de', { numeric: true, sensitivity: 'base' });
     }
 
     async function fetchFolder(path) {
-      // Encode each path segment individually so umlauts in folder names
-      // (e.g. "Übungen") are correctly turned into %C3%9Cbungen.
       const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-      // Cache-bust with a timestamp so we don't get stale CDN data after uploads
-      const url = `${API_BASE}/${encodedPath}?ref=${BRANCH}&t=${Date.now()}`;
-      const res = await fetch(url, { cache: 'no-store' });
+      const url = `${API_BASE}/${encodedPath}?ref=${BRANCH}`;
+      const res = await fetch(url);
       if (!res.ok) {
         if (res.status === 404) return [];
         throw new Error(`GitHub API ${res.status}`);
@@ -449,7 +439,7 @@
       return res.json();
     }
 
-    async function loadSection(sectionKey) {
+    async function renderSection(sectionKey) {
       const folder = SECTIONS[sectionKey];
       const target = document.getElementById(`${sectionKey}-content`);
 
@@ -497,7 +487,6 @@
           sub.files.forEach(file => {
             const li = document.createElement('li');
             const a = document.createElement('a');
-            // Encode each segment so umlauts work in the final URL
             const href = [folder, sub.name, file.name]
               .map(encodeURIComponent)
               .join('/');
@@ -518,7 +507,7 @@
       document.getElementById('landing').classList.add('hidden');
       document.querySelectorAll('.content-view').forEach(el => el.classList.remove('active'));
       document.getElementById(key).classList.add('active');
-      loadSection(key);
+      renderSection(key);
       history.replaceState(null, '', `#${key}`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

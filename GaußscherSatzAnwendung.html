@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gaußscher Satz Simulation</title>
+    <!-- Tailwind CSS über CDN einbinden -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8 flex items-center justify-center min-h-screen">
+
+    <div class="flex flex-col gap-6 p-6 bg-white rounded-xl shadow-lg w-full max-w-4xl mx-auto font-sans text-slate-800">
+      
+        <!-- TITEL -->
+        <div class="text-center space-y-2 mb-2">
+            <h1 class="text-3xl font-extrabold text-slate-800">Anwendung des Gaußschen Satzes</h1>
+            <p class="text-slate-500 font-medium">Ladung und Feld auf der Oberfläche von leitenden Körpern</p>
+        </div>
+
+        <!-- UMSCHALTER -->
+        <div class="flex bg-slate-100 p-1 rounded-lg w-full max-w-md mx-auto">
+          <button 
+            id="btn-solid"
+            class="flex-1 py-2 px-4 rounded-md font-bold transition-all bg-white shadow-sm text-blue-600"
+            onclick="setMode('solid')"
+          >
+            1. Massiver Körper
+          </button>
+          <button 
+            id="btn-cavity"
+            class="flex-1 py-2 px-4 rounded-md font-bold transition-all text-slate-500 hover:text-slate-700"
+            onclick="setMode('cavity')"
+          >
+            2. Mit Hohlraum
+          </button>
+        </div>
+  
+        <!-- INHALTSBEREICH -->
+        <div class="flex flex-col md:flex-row items-center gap-8 p-6 bg-slate-50 rounded-xl border border-slate-200 min-h-[320px]">
+          
+          <!-- Linke Seite: Visualisierung -->
+          <div class="flex-shrink-0" id="svg-container">
+            <!-- SVG wird hier per JavaScript eingefügt -->
+          </div>
+  
+          <!-- Rechte Seite: Erklärungstext -->
+          <div class="flex-1 space-y-3" id="text-container">
+            <!-- Text wird hier per JavaScript eingefügt -->
+          </div>
+  
+        </div>
+      </div>
+
+      <script>
+        // Konstanten für die Geometrie
+        const CENTER = 150;
+        const R_OUTER = 80;
+        const R_INNER = 35;
+
+        // Generiert die Ladungen am Rand
+        function getChargesHTML() {
+            const numCharges = 12;
+            let charges = '';
+            for (let i = 0; i < numCharges; i++) {
+                const angle = (i * 2 * Math.PI) / numCharges;
+                const x = CENTER + (R_OUTER + 8) * Math.cos(angle);
+                const y = CENTER + (R_OUTER + 8) * Math.sin(angle);
+                charges += `
+                    <g transform="translate(${x}, ${y})">
+                        <circle cx="0" cy="0" r="8" fill="#ef4444" opacity="0.2" />
+                        <text x="0" y="4" text-anchor="middle" font-size="12" fill="#ef4444" font-weight="bold">+</text>
+                    </g>
+                `;
+            }
+            return charges;
+        }
+
+        // Generiert das komplette SVG basierend auf dem Modus
+        function renderSVG(mode) {
+            const hatchPattern = `
+                <defs>
+                    <pattern id="hatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                        <line x1="0" y1="0" x2="0" y2="8" stroke="#cbd5e1" stroke-width="1.5" />
+                    </pattern>
+                </defs>
+            `;
+            
+            const stand = `
+                <line x1="${CENTER}" y1="20" x2="${CENTER}" y2="${CENTER - R_OUTER}" stroke="#64748b" stroke-width="3" />
+                <rect x="${CENTER - 30}" y="15" width="60" height="8" fill="#475569" />
+            `;
+            
+            const isolatorText = mode === 'solid' ? `<text x="${CENTER + 10}" y="50" font-size="14" fill="#64748b">Isolator</text>` : '';
+            
+            const conductor = `<circle cx="${CENTER}" cy="${CENTER}" r="${R_OUTER}" fill="url(#hatch)" stroke="#3b82f6" stroke-width="2" />`;
+            const cavity = mode === 'cavity' ? `<circle cx="${CENTER}" cy="${CENTER}" r="${R_INNER}" fill="#f8fafc" stroke="#3b82f6" stroke-width="2" />` : '';
+            
+            const labelText = mode === 'solid' ? 'Metall' : 'Leiter';
+            const label = `<text x="${CENTER + R_OUTER + 15}" y="${CENTER - 20}" font-size="14" fill="#3b82f6" font-weight="bold">${labelText}</text>`;
+            
+            const gaussRadius = mode === 'solid' ? R_OUTER - 15 : R_INNER + 20;
+            const gaussCircle = `<circle cx="${CENTER}" cy="${CENTER}" r="${gaussRadius}" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="6,4" />`;
+            
+            let gaussLabel = '';
+            if (mode === 'solid') {
+                gaussLabel = `
+                    <text x="${CENTER + 30}" y="${CENTER + 20}" font-size="12" fill="#ef4444" font-weight="bold">Gaußsche Fläche</text>
+                    <line x1="${CENTER + 25}" y1="${CENTER + 15}" x2="${CENTER + R_OUTER - 20}" y2="${CENTER + R_OUTER - 30}" stroke="#ef4444" stroke-width="1" />
+                `;
+            } else {
+                gaussLabel = `<text x="${CENTER + 25}" y="${CENTER + 40}" font-size="12" fill="#ef4444" font-weight="bold">Gaußsche Fläche</text>`;
+            }
+
+            return `
+                <svg width="300" height="250" viewBox="0 0 300 250">
+                    ${hatchPattern}
+                    ${stand}
+                    ${isolatorText}
+                    ${conductor}
+                    ${cavity}
+                    ${label}
+                    ${gaussCircle}
+                    ${gaussLabel}
+                    ${getChargesHTML()}
+                </svg>
+            `;
+        }
+
+        // Generiert den Text basierend auf dem Modus
+        function renderText(mode) {
+            if (mode === 'solid') {
+                return `
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2">Isolierter, leitender Körper</h2>
+                    <ul class="space-y-2 text-slate-700">
+                        <li>• <span class="font-semibold text-blue-700">E = 0</span> im Inneren (sonst würde Strom fließen).</li>
+                        <li>• <span class="font-semibold text-blue-700">Φ = 0</span> durch die rote Gaußsche Fläche.</li>
+                        <li>• <span class="font-semibold text-blue-700">q = 0</span> im Inneren des Leiters eingeschlossen.</li>
+                    </ul>
+                    <div class="mt-4 p-3 bg-blue-100 text-blue-900 rounded-lg font-bold text-center border border-blue-200">
+                        Fazit: Die gesamte Ladung liegt auf der äußeren Oberfläche.
+                    </div>
+                `;
+            } else {
+                return `
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2">Leiter mit einem Hohlraum</h2>
+                    <ul class="space-y-2 text-slate-700">
+                        <li>• <span class="font-semibold text-blue-700">E = 0</span> innerhalb des leitenden Materials.</li>
+                        <li>• <span class="font-semibold text-blue-700">Φ = 0</span> durch die Gaußsche Fläche.</li>
+                        <li>• <span class="font-semibold text-blue-700">q = 0</span> innerhalb der Gaußschen Fläche.</li>
+                        <li>• Auf der inneren Oberfläche (zwischen Hohlraum & Material) kann keine Ladung sein.</li>
+                    </ul>
+                    <div class="mt-4 p-3 bg-blue-100 text-blue-900 rounded-lg font-bold text-center border border-blue-200">
+                        Fazit: Gesamte Überschussladung muss auf der äußeren Oberfläche sitzen.
+                    </div>
+                `;
+            }
+        }
+
+        // Hauptfunktion zum Umschalten
+        function setMode(mode) {
+            // Button Styles aktualisieren
+            const btnSolid = document.getElementById('btn-solid');
+            const btnCavity = document.getElementById('btn-cavity');
+
+            const activeClass = "flex-1 py-2 px-4 rounded-md font-bold transition-all bg-white shadow-sm text-blue-600";
+            const inactiveClass = "flex-1 py-2 px-4 rounded-md font-bold transition-all text-slate-500 hover:text-slate-700";
+
+            if (mode === 'solid') {
+                btnSolid.className = activeClass;
+                btnCavity.className = inactiveClass;
+            } else {
+                btnSolid.className = inactiveClass;
+                btnCavity.className = activeClass;
+            }
+
+            // Inhalt aktualisieren
+            document.getElementById('svg-container').innerHTML = renderSVG(mode);
+            document.getElementById('text-container').innerHTML = renderText(mode);
+        }
+
+        // Initiale Render-Aktion beim Laden
+        setMode('solid');
+      </script>
+</body>
+</html>

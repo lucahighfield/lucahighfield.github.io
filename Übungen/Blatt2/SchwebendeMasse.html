@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schwebende Punktmasse</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex items-center gap-3 mb-2">
+                <!-- Activity Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 text-blue-600"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                <h1 class="text-2xl font-bold text-slate-900">Schwebende Punktmasse (Experiment)</h1>
+            </div>
+            <p class="text-slate-600">
+                Interaktive Simulation zu Aufgabe 3. Beobachte, wie sich Gewichtskraft und elektrostatische Abstoßung 
+                die Waage halten und untersuche die harmonische Schwingung bei kleinen Auslenkungen.
+            </p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Linke Spalte: Visualisierung Zylinder -->
+            <div class="lg:col-span-5 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
+                <h2 class="text-lg font-semibold mb-4 w-full text-center">Zylinder & Kräfte</h2>
+                
+                <div id="cylinder-area" class="relative w-64 h-96 bg-slate-100 rounded-b-3xl border-x-4 border-b-4 border-slate-300 flex justify-center cursor-pointer">
+                    
+                    <!-- Bodenladung q0 -->
+                    <div class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-10 h-10 bg-red-500 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center">
+                        <span class="text-white font-bold text-xs">q₀</span>
+                    </div>
+
+                    <!-- Gleichgewichtslinie y0 -->
+                    <div id="equilibrium-line" class="absolute left-0 w-full border-t-2 border-dashed border-green-400 opacity-50">
+                        <span class="absolute -top-6 left-2 text-xs font-semibold text-green-600">Gleichgewicht (y₀)</span>
+                    </div>
+
+                    <!-- Bewegliche Masse q -->
+                    <div id="mass-element" class="absolute left-1/2 -translate-x-1/2 w-8 h-8 bg-blue-500 rounded-full border-2 border-white shadow-lg transition-transform" style="bottom: 125px;">
+                        <span class="absolute inset-0 flex items-center justify-center text-white font-bold text-xs">q</span>
+
+                        <!-- Kraftvektor Fe (nach oben) -->
+                        <div id="force-e" class="absolute bottom-1/2 left-1/2 w-1 bg-red-400 origin-bottom flex flex-col items-center pointer-events-none" style="transform: translateX(-50%);">
+                            <div class="w-3 h-3 bg-red-400 rotate-45 -translate-y-1.5 rounded-sm"></div>
+                            <span class="absolute top-0 -right-8 text-xs font-bold text-red-500">F_e</span>
+                        </div>
+
+                        <!-- Kraftvektor Fg (nach unten) -->
+                        <div id="force-g" class="absolute top-1/2 left-1/2 w-1 bg-slate-600 origin-top flex flex-col justify-end items-center pointer-events-none" style="transform: translateX(-50%);">
+                            <div class="w-3 h-3 bg-slate-600 rotate-45 translate-y-1.5 rounded-sm"></div>
+                            <span class="absolute bottom-0 -right-8 text-xs font-bold text-slate-700">F_g</span>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400 mt-6 text-center">
+                    Klicke in den Zylinder, um die Masse manuell zu positionieren und eine Schwingung auszulösen.
+                </p>
+            </div>
+
+            <!-- Rechte Spalte: Controls und Diagramm -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <!-- Controls -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex flex-wrap gap-4 justify-between items-center mb-6">
+                        <h2 class="text-lg font-semibold">Parameter</h2>
+                        <div class="flex gap-2">
+                            <button id="btn-perturb" class="flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M8 6L12 2L16 6"/><path d="M12 2V22"/></svg>
+                                Auslenken
+                            </button>
+                            <button id="btn-reset" class="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                Reset
+                            </button>
+                            <button id="btn-playpause" class="flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors bg-amber-100 text-amber-700 hover:bg-amber-200">
+                                <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 hidden"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <span id="text-playpause">Pause</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-5">
+                        <!-- Masse Slider -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-slate-700">Masse <span class="italic">m</span></label>
+                                <span id="val-m-display" class="text-slate-500">1.00 kg</span>
+                            </div>
+                            <input id="slider-m" type="range" min="0.2" max="3" step="0.1" value="1.0" class="w-full accent-blue-600" />
+                        </div>
+
+                        <!-- Ladung q Slider -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-slate-700">Ladung (Masse) <span class="italic">q</span></label>
+                                <span id="val-q-display" class="text-slate-500">1.00 C</span>
+                            </div>
+                            <input id="slider-q" type="range" min="0.2" max="3" step="0.1" value="1.0" class="w-full accent-blue-600" />
+                        </div>
+
+                        <!-- Ladung q0 Slider -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <label class="font-medium text-slate-700">Ladung (Boden) <span class="italic">q₀</span></label>
+                                <span id="val-q0-display" class="text-slate-500">1.00 C</span>
+                            </div>
+                            <input id="slider-q0" type="range" min="0.2" max="3" step="0.1" value="1.0" class="w-full accent-red-500" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diagramm & Berechnete Werte -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- Mathematische Werte -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Analytische Lösung</h2>
+                        
+                        <div class="space-y-4">
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <div class="text-xs text-slate-500 mb-1">Gleichgewichtsabstand y₀ (Aufgabe a)</div>
+                                <div id="calc-y0" class="font-mono text-lg font-semibold text-slate-800">0.0 m</div>
+                            </div>
+                            
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <div class="text-xs text-slate-500 mb-1">Kreisfrequenz ω (Aufgabe b)</div>
+                                <div id="calc-omega" class="font-mono text-lg font-semibold text-slate-800">0.00 s⁻¹</div>
+                            </div>
+
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <div class="text-xs text-slate-500 mb-1">Periodendauer T</div>
+                                <div id="calc-t" class="font-mono text-lg font-semibold text-slate-800">0.00 s</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Graph -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                        <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Orts-Zeit-Diagramm y(t)</h2>
+                        <div class="flex-grow relative bg-slate-50 rounded-lg border border-slate-200 overflow-hidden min-h-[200px]">
+                            <svg viewBox="0 0 150 100" class="w-full h-full" preserveAspectRatio="none">
+                                <!-- Y-Achsen Gitter -->
+                                <line x1="0" y1="25" x2="150" y2="25" stroke="#e2e8f0" stroke-width="0.5" />
+                                <line x1="0" y1="50" x2="150" y2="50" stroke="#e2e8f0" stroke-width="0.5" />
+                                <line x1="0" y1="75" x2="150" y2="75" stroke="#e2e8f0" stroke-width="0.5" />
+                                
+                                <!-- Gleichgewichtslinie im Graph -->
+                                <line id="chart-eq-line" x1="0" y1="50" x2="150" y2="50" stroke="#4ade80" stroke-width="1" stroke-dasharray="2 2" />
+
+                                <!-- Datenpfad -->
+                                <path id="chart-path" d="" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linejoin="round" />
+                            </svg>
+                            <div class="absolute top-1 left-2 text-[10px] text-slate-400">Position y</div>
+                            <div class="absolute bottom-1 right-2 text-[10px] text-slate-400">Zeit t</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Physikalische Konstanten und Skalierung ---
+        const g = 9.81;
+        const k = 25000; 
+        const dt = 0.05;
+
+        // --- State ---
+        let isPlaying = true;
+        let params = { m: 1.0, q: 1.0, q0: 1.0 };
+        let physics = { y: 50, v: 0, time: 0, history: [] };
+        
+        // --- Berechnungen (Theorie) ---
+        function getAnalyticalValues() {
+            const y_0 = Math.sqrt((k * params.q0 * params.q) / (params.m * g));
+            const omega = Math.sqrt((2 * g) / y_0);
+            const T = (2 * Math.PI) / omega;
+            return { y_0, omega, T };
+        }
+
+        // --- DOM Elements ---
+        const els = {
+            m: document.getElementById('slider-m'),
+            q: document.getElementById('slider-q'),
+            q0: document.getElementById('slider-q0'),
+            mDisp: document.getElementById('val-m-display'),
+            qDisp: document.getElementById('val-q-display'),
+            q0Disp: document.getElementById('val-q0-display'),
+            
+            calcY0: document.getElementById('calc-y0'),
+            calcOmega: document.getElementById('calc-omega'),
+            calcT: document.getElementById('calc-t'),
+            
+            massElement: document.getElementById('mass-element'),
+            eqLine: document.getElementById('equilibrium-line'),
+            forceE: document.getElementById('force-e'),
+            forceG: document.getElementById('force-g'),
+            cylinderArea: document.getElementById('cylinder-area'),
+            
+            chartPath: document.getElementById('chart-path'),
+            chartEqLine: document.getElementById('chart-eq-line'),
+            
+            btnPlayPause: document.getElementById('btn-playpause'),
+            iconPlay: document.getElementById('icon-play'),
+            iconPause: document.getElementById('icon-pause'),
+            textPlayPause: document.getElementById('text-playpause'),
+            btnReset: document.getElementById('btn-reset'),
+            btnPerturb: document.getElementById('btn-perturb')
+        };
+
+        // --- UI Update Funktion ---
+        function updateUI() {
+            const { y_0, omega, T } = getAnalyticalValues();
+            
+            // Analytische Werte aktualisieren
+            els.calcY0.textContent = `${y_0.toFixed(1)} m`;
+            els.calcOmega.textContent = `${omega.toFixed(2)} s⁻¹`;
+            els.calcT.textContent = `${T.toFixed(2)} s`;
+
+            // Zylinder visualisieren (Skalierungsfaktor 2.5 wie in React)
+            els.massElement.style.bottom = `${physics.y * 2.5}px`;
+            els.eqLine.style.bottom = `${y_0 * 2.5}px`;
+
+            // Kräfte visualisieren
+            const forceScale = 2;
+            const F_e_current = (k * params.q * params.q0) / (physics.y * physics.y);
+            const F_g_current = params.m * g;
+            
+            els.forceE.style.height = `${Math.min(F_e_current * forceScale, 150)}px`;
+            els.forceG.style.height = `${Math.min(F_g_current * forceScale, 150)}px`;
+
+            // Diagramm aktualisieren
+            const scaledY0 = 100 - (y_0 / 120) * 100;
+            els.chartEqLine.setAttribute('y1', scaledY0);
+            els.elsy2 = els.chartEqLine.setAttribute('y2', scaledY0);
+
+            if (physics.history.length > 1) {
+                const pathD = `M ${physics.history.map((pt, i) => `${i},${100 - (pt.y / 120) * 100}`).join(' L ')}`;
+                els.chartPath.setAttribute('d', pathD);
+            } else {
+                els.chartPath.setAttribute('d', '');
+            }
+        }
+
+        // --- Simulations-Loop ---
+        function updatePhysics() {
+            if (isPlaying) {
+                const yMin = 5; 
+                const F_e = (k * params.q * params.q0) / (physics.y * physics.y);
+                const F_g = params.m * g;
+                const a = (F_e - F_g) / params.m;
+
+                physics.v += a * dt;
+                physics.y += physics.v * dt;
+                physics.time += dt;
+
+                if (physics.y < yMin) {
+                    physics.y = yMin;
+                    physics.v = 0;
+                }
+
+                physics.history.push({ t: physics.time, y: physics.y });
+                if (physics.history.length > 150) {
+                    physics.history.shift(); 
+                }
+
+                updateUI();
+            }
+            requestAnimationFrame(updatePhysics);
+        }
+
+        // --- Event Listeners ---
+        
+        // Parameter Sliders
+        const handleSliderChange = () => {
+            params.m = parseFloat(els.m.value);
+            params.q = parseFloat(els.q.value);
+            params.q0 = parseFloat(els.q0.value);
+            
+            els.mDisp.textContent = `${params.m.toFixed(2)} kg`;
+            els.qDisp.textContent = `${params.q.toFixed(2)} C`;
+            els.q0Disp.textContent = `${params.q0.toFixed(2)} C`;
+            
+            updateUI(); // Direktes UI-Update, falls pausiert
+        };
+
+        els.m.addEventListener('input', handleSliderChange);
+        els.q.addEventListener('input', handleSliderChange);
+        els.q0.addEventListener('input', handleSliderChange);
+
+        // Buttons
+        els.btnPlayPause.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                els.btnPlayPause.className = "flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors bg-amber-100 text-amber-700 hover:bg-amber-200";
+                els.iconPause.classList.remove('hidden');
+                els.iconPlay.classList.add('hidden');
+                els.textPlayPause.textContent = "Pause";
+            } else {
+                els.btnPlayPause.className = "flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors bg-green-100 text-green-700 hover:bg-green-200";
+                els.iconPause.classList.add('hidden');
+                els.iconPlay.classList.remove('hidden');
+                els.textPlayPause.textContent = "Start";
+            }
+        });
+
+        els.btnReset.addEventListener('click', () => {
+            const { y_0 } = getAnalyticalValues();
+            physics.y = y_0;
+            physics.v = 0;
+            physics.time = 0;
+            physics.history = [];
+            updateUI();
+        });
+
+        els.btnPerturb.addEventListener('click', () => {
+            physics.y += 15;
+            physics.v = 0;
+            updateUI();
+        });
+
+        // Zylinder Klick-Interaktion
+        els.cylinderArea.addEventListener('click', (e) => {
+            const rect = els.cylinderArea.getBoundingClientRect();
+            const clickY = rect.bottom - e.clientY;
+            physics.y = clickY / 2.5;
+            physics.v = 0;
+            updateUI();
+        });
+
+        // --- Start ---
+        window.onload = () => {
+            updateUI();
+            requestAnimationFrame(updatePhysics);
+        };
+    </script>
+</body>
+</html>

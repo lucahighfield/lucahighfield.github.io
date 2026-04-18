@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aufgabe 4: Geladene Kugel (Visualisierung)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+
+  <div class="max-w-6xl mx-auto p-4">
+    <header class="mb-6 border-b pb-4">
+      <h1 class="text-3xl font-bold text-slate-900">Aufgabe 4: Geladene Kugel (Visualisierung)</h1>
+      <p class="text-slate-600 mt-2">
+        Gaußsches Gesetz in Aktion. Verändern Sie die Parameter und den Beobachtungsabstand r, 
+        um das elektrische Feld E zu analysieren. (Reine HTML/JS Version)
+      </p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+      <!-- LINKE SPALTE: Räumliche Darstellung -->
+      <div class="bg-white rounded-xl shadow-md p-4 border border-slate-200">
+        <h2 class="text-lg font-bold mb-4 text-center">Räumliches Modell & Gaußsche Fläche</h2>
+        <div class="relative w-full aspect-square max-w-[400px] mx-auto bg-slate-100 rounded-lg overflow-hidden border border-slate-300">
+          <svg id="spatial-svg" viewBox="0 0 400 400" class="w-full h-full">
+            <!-- Wird per JS befüllt -->
+          </svg>
+        </div>
+      </div>
+
+      <!-- RECHTE SPALTE: Diagramm & Erklärung -->
+      <div class="flex flex-col gap-4">
+        <div class="bg-white rounded-xl shadow-md p-4 border border-slate-200 flex-grow">
+           <h2 class="text-lg font-bold mb-4 text-center">Elektrisches Feld E(r)</h2>
+           <div class="w-full aspect-[4/3] bg-slate-50 border border-slate-300 rounded-lg relative">
+              <svg id="graph-svg" viewBox="0 0 400 300" class="w-full h-full">
+                <!-- Wird per JS befüllt -->
+              </svg>
+           </div>
+        </div>
+
+        <!-- Dynamische Textbox -->
+        <div class="bg-blue-50 rounded-xl shadow-inner p-5 border border-blue-200">
+          <h3 class="font-bold text-blue-900 mb-2">Pädagogische Analyse (Sachzusammenhang)</h3>
+          <p class="text-sm text-blue-800 mb-2">
+            <strong>Beobachtungspunkt: </strong> 
+            <span id="text-rPos" class="inline-block px-2 py-1 bg-green-200 text-green-900 rounded font-mono">r = 6.0</span>
+            <span id="text-location"> (Außerhalb)</span>
+          </p>
+          
+          <div id="explanation-text" class="text-sm text-slate-700 bg-white p-3 rounded border border-blue-100">
+            <!-- Wird per JS befüllt -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- UNTERER BEREICH: Steuerungen (Controls) -->
+    <div class="mt-6 bg-white rounded-xl shadow-md p-6 border border-slate-200">
+      <h2 class="text-lg font-bold mb-4">Parameter anpassen</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Material & Ladung -->
+        <div class="space-y-6">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">Material der Kugel</label>
+            <div class="flex gap-4">
+              <button id="btn-metall" class="flex-1 py-2 rounded-md font-medium transition-colors bg-slate-800 text-white shadow-md">
+                Metall (Leiter)
+              </button>
+              <button id="btn-isolator" class="flex-1 py-2 rounded-md font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200">
+                Isolator
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between">
+              <label class="block text-sm font-semibold text-slate-700 mb-1">Gesamtladung Q</label>
+              <span id="val-charge" class="font-mono text-sm">+5</span>
+            </div>
+            <input id="input-charge" type="range" min="-10" max="10" step="1" value="5" class="w-full accent-blue-600" />
+            <p class="text-xs text-slate-500 mt-1">Bestimmt die Vorzeichen und die Stärke des Feldes.</p>
+          </div>
+        </div>
+
+        <!-- Radien -->
+        <div class="space-y-6">
+          <div>
+            <div class="flex justify-between">
+              <label class="block text-sm font-semibold text-slate-700 mb-1">Kugelradius R</label>
+              <span id="val-radius" class="font-mono text-sm text-yellow-600 font-bold">4.0</span>
+            </div>
+            <input id="input-radius" type="range" min="1" max="8" step="0.5" value="4" class="w-full accent-yellow-500" />
+          </div>
+
+          <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div class="flex justify-between">
+              <label class="block text-sm font-semibold text-green-900 mb-1">Beobachtungsabstand r (Gaußsche Fläche)</label>
+              <span id="val-rPos" class="font-mono text-sm text-green-700 font-bold">6.0</span>
+            </div>
+            <input id="input-rPos" type="range" min="0" max="10" step="0.1" value="6" class="w-full accent-green-600" />
+            <p class="text-xs text-green-700 mt-1">Bewegen Sie diesen Regler, um die gestrichelte Hülle und den Punkt im Graphen zu verschieben.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- STATE ---
+    let material = 'metall'; 
+    let radius = 4;
+    let charge = 5; 
+    let rPos = 6;
+
+    // --- PHYSIKALISCHE KONSTANTEN & GRENZEN ---
+    const R_MAX = 10;
+    const MAX_E_VAL = 1.5;
+
+    // --- BERECHNUNGEN ---
+    function calculateE(r) {
+      if (r === 0) return 0;
+      
+      if (material === 'metall') {
+        if (r < radius) return 0;
+        return charge / (r * r);
+      } else {
+        if (r < radius) {
+          return (charge * r) / (Math.pow(radius, 3));
+        } else {
+          return charge / (r * r);
+        }
+      }
+    }
+
+    // --- HELPER ---
+    const mapSpatial = (val) => val * 15 + 200; 
+    const mapGraphX = (r) => 50 + (r / R_MAX) * 300;
+    const mapGraphY = (eVal) => 250 - (eVal / MAX_E_VAL) * 100;
+
+    // --- RENDER LOGIK ---
+    function updateUI() {
+      // 1. Variablen auslesen & konvertieren
+      radius = parseFloat(document.getElementById('input-radius').value);
+      charge = parseFloat(document.getElementById('input-charge').value);
+      rPos = parseFloat(document.getElementById('input-rPos').value);
+
+      const currentEVal = calculateE(rPos);
+
+      // 2. Buttons anpassen
+      const btnMetall = document.getElementById('btn-metall');
+      const btnIsolator = document.getElementById('btn-isolator');
+      
+      if (material === 'metall') {
+        btnMetall.className = "flex-1 py-2 rounded-md font-medium transition-colors bg-slate-800 text-white shadow-md";
+        btnIsolator.className = "flex-1 py-2 rounded-md font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200";
+      } else {
+        btnMetall.className = "flex-1 py-2 rounded-md font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200";
+        btnIsolator.className = "flex-1 py-2 rounded-md font-medium transition-colors bg-yellow-600 text-white shadow-md";
+      }
+
+      // 3. Textwerte anpassen
+      document.getElementById('val-radius').innerText = radius.toFixed(1);
+      document.getElementById('val-charge').innerText = charge > 0 ? '+' + charge : charge;
+      document.getElementById('val-rPos').innerText = rPos.toFixed(1);
+      document.getElementById('text-rPos').innerText = 'r = ' + rPos.toFixed(1);
+
+      let locationText = rPos < radius ? " (Im Inneren)" : rPos > radius ? " (Außerhalb)" : " (Auf der Oberfläche)";
+      document.getElementById('text-location').innerText = locationText;
+
+      // 4. Erklärtext anpassen
+      const explanationDiv = document.getElementById('explanation-text');
+      if (material === 'metall') {
+        if (rPos < radius) {
+          explanationDiv.innerHTML = "<span>Da wir uns <strong>innerhalb des Metalls</strong> (r < R) befinden und freie Ladungen sich nach außen abstoßen, ist das Innere feldfrei. Die gestrichelte Gaußsche Fläche schließt <strong>keine Ladung</strong> ein (Q_innen = 0). Daraus folgt direkt E = 0.</span>";
+        } else {
+          explanationDiv.innerHTML = "<span>Wir sind <strong>außerhalb des Metalls</strong> (r ≥ R). Die Gaußsche Fläche schließt nun die <strong>gesamte Oberflächenladung Q</strong> ein. Das Feld verhält sich exakt so, als wäre die gesamte Ladung in einer Punktladung im Zentrum konzentriert (E ∝ 1/r²).</span>";
+        }
+      } else {
+        if (rPos < radius) {
+          explanationDiv.innerHTML = "<span>Wir sind <strong>innerhalb des Isolators</strong> (r < R). Die Ladung ist im Volumen gebunden. Die Gaußsche Fläche schließt nur den <strong>Teil der Ladung</strong> ein, der innerhalb von r liegt. Da das Kugelvolumen mit r³ wächst, die Hüllfläche aber nur mit r², wächst E <strong>linear</strong> vom Zentrum nach außen an.</span>";
+        } else {
+          explanationDiv.innerHTML = "<span>Wir sind <strong>außerhalb des Isolators</strong> (r ≥ R). Genau wie bei der Metallkugel schließt die Gaußsche Fläche nun die <strong>gesamte Ladung Q</strong> ein. Der innere Aufbau der Kugel ist von außen nicht spürbar – das Feld entspricht dem einer Punktladung (E ∝ 1/r²).</span>";
+        }
+      }
+
+      // 5. SVG Spatial generieren
+      let spatialSVG = `
+        <line x1="200" y1="0" x2="200" y2="400" stroke="#cbd5e1" stroke-dasharray="4 4" />
+        <line x1="0" y1="200" x2="400" y2="200" stroke="#cbd5e1" stroke-dasharray="4 4" />
+        
+        <circle cx="200" cy="200" r="${radius * 15}" 
+                fill="${material === 'metall' ? '#cbd5e1' : '#fef08a'}" 
+                stroke="${material === 'metall' ? '#64748b' : '#ca8a04'}" 
+                stroke-width="2" opacity="0.8" />
+      `;
+
+      // Ladungen berechnen und zeichnen
+      const numCharges = Math.abs(charge) * 6;
+      const isPositive = charge > 0;
+      
+      if (numCharges > 0) {
+        let pts = [];
+        if (material === 'metall') {
+          for (let i = 0; i < numCharges; i++) {
+            const angle = (i / numCharges) * 2 * Math.PI;
+            pts.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle), sign: isPositive ? '+' : '-' });
+          }
+        } else {
+          const phi = Math.PI * (3 - Math.sqrt(5));
+          for (let i = 0; i < numCharges; i++) {
+            const r = radius * Math.sqrt(i / numCharges) * 0.9;
+            const theta = phi * i;
+            pts.push({ x: r * Math.cos(theta), y: r * Math.sin(theta), sign: isPositive ? '+' : '-' });
+          }
+        }
+
+        pts.forEach(c => {
+          spatialSVG += `
+            <g transform="translate(${mapSpatial(c.x)}, ${mapSpatial(c.y)})">
+              <circle r="4" fill="${c.sign === '+' ? '#ef4444' : '#3b82f6'}" />
+              <text x="0" y="0" text-anchor="middle" dominant-baseline="central" fill="white" font-size="7" font-weight="bold">${c.sign}</text>
+            </g>
+          `;
+        });
+      }
+
+      // Gaußsche Fläche & Linien
+      spatialSVG += `
+        <circle cx="200" cy="200" r="${rPos * 15}" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="8 4" />
+        <line x1="200" y1="200" x2="${200 + radius*15*Math.cos(Math.PI/4)}" y2="${200 - radius*15*Math.sin(Math.PI/4)}" stroke="#475569" stroke-width="2" />
+        <text x="${200 + radius*7.5*Math.cos(Math.PI/4)}" y="${200 - radius*7.5*Math.sin(Math.PI/4) - 5}" fill="#475569" font-weight="bold">R</text>
+        <line x1="200" y1="200" x2="${200 + rPos*15}" y2="200" stroke="#10b981" stroke-width="2" />
+        <text x="${200 + rPos*7.5}" y="195" fill="#10b981" font-weight="bold">r</text>
+      `;
+
+      // E-Feld Vektor
+      if (currentEVal !== 0) {
+        spatialSVG += `
+          <g transform="translate(${200 + rPos*15}, 200)">
+            <line x1="0" y1="0" x2="${currentEVal * 40 * Math.sign(charge)}" y2="0" stroke="#8b5cf6" stroke-width="3" marker-end="url(#arrow)" />
+            <text x="${(currentEVal * 40 * Math.sign(charge)) / 2}" y="-8" fill="#8b5cf6" font-weight="bold" text-anchor="middle">E</text>
+          </g>
+        `;
+      }
+
+      spatialSVG += `
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b5cf6" />
+          </marker>
+        </defs>
+      `;
+      document.getElementById('spatial-svg').innerHTML = spatialSVG;
+
+      // 6. SVG Graph generieren
+      let graphSVG = `
+        <line x1="50" y1="250" x2="380" y2="250" stroke="black" />
+        <line x1="50" y1="20" x2="50" y2="280" stroke="black" />
+        <text x="370" y="270" font-size="12">r</text>
+        <text x="30" y="30" font-size="12">E</text>
+        <line x1="45" y1="250" x2="55" y2="250" stroke="black" />
+        <text x="30" y="254" font-size="12">0</text>
+        
+        <line x1="${mapGraphX(radius)}" y1="20" x2="${mapGraphX(radius)}" y2="250" stroke="#ca8a04" stroke-dasharray="4 4" />
+        <text x="${mapGraphX(radius) - 5}" y="265" font-size="12" fill="#ca8a04" font-weight="bold">R</text>
+      `;
+
+      let path = `M ${mapGraphX(0.01)} ${mapGraphY(calculateE(0.01))} `;
+      for (let r = 0.1; r <= R_MAX; r += 0.1) {
+        path += `L ${mapGraphX(r)} ${mapGraphY(calculateE(r))} `;
+      }
+      
+      graphSVG += `<path d="${path}" fill="none" stroke="#3b82f6" stroke-width="3" />`;
+      graphSVG += `
+        <circle cx="${mapGraphX(rPos)}" cy="${mapGraphY(currentEVal)}" r="6" fill="#10b981" />
+        <line x1="${mapGraphX(rPos)}" y1="250" x2="${mapGraphX(rPos)}" y2="${mapGraphY(currentEVal)}" stroke="#10b981" stroke-dasharray="2 2" />
+      `;
+
+      document.getElementById('graph-svg').innerHTML = graphSVG;
+    }
+
+    // --- EVENT LISTENERS BINDEN ---
+    document.getElementById('btn-metall').addEventListener('click', () => { material = 'metall'; updateUI(); });
+    document.getElementById('btn-isolator').addEventListener('click', () => { material = 'isolator'; updateUI(); });
+    document.getElementById('input-charge').addEventListener('input', updateUI);
+    document.getElementById('input-radius').addEventListener('input', updateUI);
+    document.getElementById('input-rPos').addEventListener('input', updateUI);
+
+    // Initialer Aufruf
+    updateUI();
+  </script>
+</body>
+</html>

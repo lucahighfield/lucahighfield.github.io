@@ -347,7 +347,7 @@
 <body>
   <div class="container">
     <header>
-      <div class="eyebrow"> Interaktive Visualisierungen</div>
+      <div class="eyebrow">Interaktive Visualisierung</div>
       <h1>Experimentalphysik 2 für Ingenieurwissenschaften,<br><span class="accent">visualisiert.</span></h1>
       <div class="intro">
         <p>Sammlung der in der Vorlesung und Übungen gezeigten Visualisierungen.</p>
@@ -402,7 +402,7 @@
     </div>
 
     <footer>
-      Prof. Krischer – SS26 – Stand: 18.04.2026
+      Prof. Krischer · SS26 · Stand: 18. April 2026
     </footer>
   </div>
 
@@ -436,8 +436,12 @@
     }
 
     async function fetchFolder(path) {
-      const url = `${API_BASE}/${encodeURIComponent(path).replace(/%2F/g, '/')}?ref=${BRANCH}`;
-      const res = await fetch(url);
+      // Encode each path segment individually so umlauts in folder names
+      // (e.g. "Übungen") are correctly turned into %C3%9Cbungen.
+      const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+      // Cache-bust with a timestamp so we don't get stale CDN data after uploads
+      const url = `${API_BASE}/${encodedPath}?ref=${BRANCH}&t=${Date.now()}`;
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) {
         if (res.status === 404) return [];
         throw new Error(`GitHub API ${res.status}`);
@@ -493,7 +497,11 @@
           sub.files.forEach(file => {
             const li = document.createElement('li');
             const a = document.createElement('a');
-            a.href = `${folder}/${sub.name}/${file.name}`;
+            // Encode each segment so umlauts work in the final URL
+            const href = [folder, sub.name, file.name]
+              .map(encodeURIComponent)
+              .join('/');
+            a.href = href;
             a.textContent = prettifyName(file.name);
             li.appendChild(a);
             ul.appendChild(li);

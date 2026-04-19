@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phasenraumdarstellung: Bistabile Medien</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Verhindert Textauswahl beim schnellen Klicken auf dem Canvas */
+        #phase-canvas {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans min-h-screen flex flex-col items-center justify-center p-6">
+
+    <div class="bg-white rounded-xl shadow-lg p-8 max-w-5xl w-full">
+        
+        <header class="mb-6">
+            <h1 class="text-2xl font-bold text-slate-800 mb-2">Phasenraumdarstellung: Bistabile Medien</h1>
+            <p class="text-slate-600">
+                Reaktions-Diffusions-System mit <code class="bg-slate-100 px-1 py-0.5 rounded text-sm">f(u) = -u(u-0.4)(u-1)</code>
+            </p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            
+            <!-- Controls Panel -->
+            <div class="lg:col-span-1 space-y-8">
+                
+                <!-- Slider für c -->
+                <div class="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                    <label class="block text-sm font-semibold text-slate-700 mb-3">
+                        Wellengeschwindigkeit <span class="italic text-lg">c</span>
+                    </label>
+                    
+                    <div class="flex items-center space-x-4 mb-2">
+                        <input 
+                            type="range" 
+                            id="c-slider"
+                            min="0" 
+                            max="0.3" 
+                            step="0.001" 
+                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                    </div>
+                    
+                    <div class="flex justify-between items-end">
+                        <div id="c-value-display" class="text-2xl font-mono font-bold text-blue-600">
+                            <!-- Wert wird per JS gefüllt -->
+                        </div>
+                    </div>
+                    
+                    <div id="c0-info" class="mt-4 text-xs text-slate-500">
+                        <!-- Info wird per JS gefüllt -->
+                    </div>
+                </div>
+
+                <!-- Presets -->
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-700 mb-3">Szenarien (vgl. Figure 2)</h3>
+                    <div class="space-y-2">
+                        <button id="btn-02" class="preset-btn w-full text-left px-4 py-2 rounded-md transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 border border-transparent">
+                            <span class="font-mono mr-2">c = 0.2</span> <br/><span class="text-xs opacity-80">(c &gt; c₀) Konvergiert zu u₂</span>
+                        </button>
+                        <button id="btn-c0" class="preset-btn w-full text-left px-4 py-2 rounded-md transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 border border-transparent">
+                            <span class="font-mono mr-2">c ≈ 0.141</span> <br/><span class="text-xs opacity-80">(c = c₀) Heterokliner Orbit u₃ → u₁</span>
+                        </button>
+                        <button id="btn-01" class="preset-btn w-full text-left px-4 py-2 rounded-md transition-colors bg-slate-100 text-slate-700 hover:bg-slate-200 border border-transparent">
+                            <span class="font-mono mr-2">c = 0.1</span> <br/><span class="text-xs opacity-80">(c &lt; c₀) Divergiert / negative Werte</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Interaktion -->
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800">
+                    <div class="flex items-start mb-2">
+                        <svg class="w-5 h-5 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                        <p><strong>Interaktiv:</strong> Klicke irgendwo in das Diagramm, um eine Trajektorie von diesem Punkt aus zu starten.</p>
+                    </div>
+                    <button id="btn-clear" class="hidden mt-3 flex items-center justify-center w-full px-3 py-1.5 bg-white border border-blue-200 rounded hover:bg-blue-100 text-blue-700 transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Eigene Pfade löschen
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Canvas Panel -->
+            <div class="lg:col-span-3 bg-white border-2 border-slate-200 rounded-xl overflow-hidden relative shadow-inner">
+                <canvas id="phase-canvas" width="800" height="500" class="w-full h-auto cursor-crosshair block"></canvas>
+                
+                <!-- Legende -->
+                <div class="absolute top-4 right-4 bg-white/90 backdrop-blur p-3 rounded-lg border border-slate-200 shadow-sm text-sm">
+                    <div class="flex items-center mb-1">
+                        <div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                        <span>Sattelpunkte (u₁, u₃)</span>
+                    </div>
+                    <div class="flex items-center mb-1">
+                        <div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                        <span>Stabiler Zustand (u₂)</span>
+                    </div>
+                    <div class="flex items-center mt-2 pt-2 border-t border-slate-200">
+                        <div class="w-4 h-0.5 bg-slate-900 mr-2"></div>
+                        <span class="font-semibold">Trajektorien (wie Fig. 2)</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-slate-200 flex items-start text-slate-500 text-sm">
+            <svg class="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <p>
+            Diese Simulation löst das System <code class="px-1 bg-slate-100 rounded">u' = v</code> und <code class="px-1 bg-slate-100 rounded">v' = [-f(u) - cv]/D</code> 
+            mit D=1. Der heterokline Orbit existiert exakt dann, wenn die instabile Mannigfaltigkeit von u₃ nahtlos in die stabile Mannigfaltigkeit von u₁ übergeht.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Konstanten aus dem Modell
+        const D = 1.0;
+        const c_0 = 0.1 * Math.sqrt(2); // Kritische Geschwindigkeit ca. 0.1414
+        const u1 = 0.0;
+        const u2 = 0.4;
+        const u3 = 1.0;
+
+        // Ansichtsgrenzen (Achsen)
+        const uMin = -0.2;
+        const uMax = 1.2;
+        const vMin = -0.25;
+        const vMax = 0.25;
+
+        // State Variablen
+        let currentC = c_0;
+        let customPaths = [];
+
+        // DOM Elemente
+        const canvas = document.getElementById('phase-canvas');
+        const ctx = canvas.getContext('2d');
+        const cSlider = document.getElementById('c-slider');
+        const cValueDisplay = document.getElementById('c-value-display');
+        const btn02 = document.getElementById('btn-02');
+        const btnC0 = document.getElementById('btn-c0');
+        const btn01 = document.getElementById('btn-01');
+        const btnClear = document.getElementById('btn-clear');
+        const c0Info = document.getElementById('c0-info');
+
+        c0Info.textContent = `Kritische Geschwindigkeit (c₀) ≈ ${c_0.toFixed(4)}`;
+
+        // Reaktionsfunktion f(u) = -u(u-0.4)(u-1)
+        const f = (u) => -u * (u - u2) * (u - u3);
+
+        // Ableitungen für das RK4 Verfahren
+        const du_dz = (u, v) => v;
+        const dv_dz = (u, v, c) => (1 / D) * (-f(u) - c * v);
+
+        // RK4 Integrator
+        function integratePath(u0, v0, c_val, forward = true, maxSteps = 35000, stepSize = 0.005) {
+            let u = u0;
+            let v = v0;
+            const path = [{ u, v }];
+            const h = forward ? stepSize : -stepSize;
+
+            for (let i = 0; i < maxSteps; i++) {
+                const k1u = du_dz(u, v);
+                const k1v = dv_dz(u, v, c_val);
+
+                const k2u = du_dz(u + h * k1u / 2, v + h * k1v / 2);
+                const k2v = dv_dz(u + h * k1u / 2, v + h * k1v / 2, c_val);
+
+                const k3u = du_dz(u + h * k2u / 2, v + h * k2v / 2);
+                const k3v = dv_dz(u + h * k2u / 2, v + h * k2v / 2, c_val);
+
+                const k4u = du_dz(u + h * k3u, v + h * k3v);
+                const k4v = dv_dz(u + h * k3u, v + h * k3v, c_val);
+
+                u += (h / 6) * (k1u + 2 * k2u + 2 * k3u + k4u);
+                v += (h / 6) * (k1v + 2 * k2v + 2 * k3v + k4v);
+
+                path.push({ u, v });
+
+                // Abbruchbedingungen, wenn Trajektorie den sichtbaren Bereich verlässt
+                if (u < uMin - 0.5 || u > uMax + 0.5 || v < vMin - 0.5 || v > vMax + 0.5) break;
+                
+                // Abbruchbedingung für stabile Spirale (vermeidet endlose Integration im Zentrum, aber erlaubt tiefe Spiralen)
+                if (Math.abs(u - u2) < 0.000001 && Math.abs(v) < 0.000001) break;
+            }
+            return path;
+        }
+
+        // Generiert die Haupt-Mannigfaltigkeiten
+        function generateMainManifolds(c_val) {
+            const eps = 0.001;
+
+            // 1. Instabile Mannigfaltigkeit von u3 = 1.0
+            const lambda_u_3 = (-c_val + Math.sqrt(c_val * c_val + 2.4)) / 2; 
+            const pathFromU3 = integratePath(1 - eps, -eps * lambda_u_3, c_val, true, 35000);
+
+            // 2. Instabile Mannigfaltigkeit von u1 = 0.0
+            const lambda_u_1 = (-c_val + Math.sqrt(c_val * c_val + 1.6)) / 2;
+            const pathFromU1 = integratePath(eps, eps * lambda_u_1, c_val, true, 35000);
+
+            return [pathFromU3, pathFromU1];
+        }
+
+        // Zeichnen Logik
+        function draw() {
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Helper für Koordinatentransformation
+            const toPx = (u) => ((u - uMin) / (uMax - uMin)) * width;
+            const toPy = (v) => height - ((v - vMin) / (vMax - vMin)) * height;
+
+            // Canvas leeren
+            ctx.clearRect(0, 0, width, height);
+
+            // Grid und Achsen zeichnen
+            ctx.strokeStyle = '#e5e7eb'; // light gray
+            ctx.lineWidth = 1;
+            
+            // Y-Achse (u=0)
+            ctx.beginPath(); ctx.moveTo(toPx(0), 0); ctx.lineTo(toPx(0), height); ctx.stroke();
+            // X-Achse (v=0)
+            ctx.beginPath(); ctx.moveTo(0, toPy(0)); ctx.lineTo(width, toPy(0)); ctx.stroke();
+
+            // Achsenbeschriftung
+            ctx.fillStyle = '#374151';
+            ctx.font = 'italic 24px serif';
+            ctx.fillText('v', toPx(0) - 25, 30);
+            ctx.fillText('u', width - 30, toPy(0) - 15);
+            
+            // Ticks für u = 0.4 und u = 1.0
+            ctx.font = '14px sans-serif';
+            ctx.fillStyle = '#6b7280';
+            [0.4, 1.0].forEach(tick => {
+                ctx.beginPath();
+                ctx.moveTo(toPx(tick), toPy(0) - 5);
+                ctx.lineTo(toPx(tick), toPy(0) + 5);
+                ctx.strokeStyle = '#374151';
+                ctx.stroke();
+                ctx.fillText(tick.toString(), toPx(tick) - 10, toPy(0) + 20);
+            });
+
+            // Pfade zeichnen Helper
+            const drawLine = (path, color, lineWidth = 1.5) => {
+                if (path.length === 0) return;
+                ctx.beginPath();
+                ctx.moveTo(toPx(path[0].u), toPy(path[0].v));
+                for (let i = 1; i < path.length; i++) {
+                    ctx.lineTo(toPx(path[i].u), toPy(path[i].v));
+                }
+                ctx.strokeStyle = color;
+                ctx.lineWidth = lineWidth;
+                ctx.stroke();
+            };
+
+            // Eigene Pfade zeichnen
+            customPaths.forEach(path => drawLine(path, '#9ca3af', 1));
+
+            // Hauptpfade zeichnen
+            const mainPaths = generateMainManifolds(currentC);
+            drawLine(mainPaths[0], '#111827', 1.5);
+            drawLine(mainPaths[1], '#111827', 1.5);
+
+            // Fixpunkte einzeichnen Helper
+            const drawPoint = (u, v, color, label) => {
+                const px = toPx(u);
+                const py = toPy(v);
+                
+                ctx.beginPath();
+                ctx.arc(px, py, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = color;
+                ctx.font = 'bold 16px sans-serif';
+                ctx.fillText(label, px - 8, py - 12);
+            };
+
+            // Fixpunkte
+            drawPoint(u1, 0, '#ef4444', 'u₁');
+            drawPoint(u2, 0, '#3b82f6', 'u₂');
+            drawPoint(u3, 0, '#ef4444', 'u₃');
+        }
+
+        // UI Updates (Buttons styles etc)
+        function updateUI() {
+            cSlider.value = currentC;
+            cValueDisplay.textContent = currentC.toFixed(4);
+
+            // Button Styles zurücksetzen
+            const inactiveClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-transparent';
+            const activeBlueClass = 'bg-blue-100 text-blue-700 border-blue-300';
+            const activeAmberClass = 'bg-amber-100 text-amber-700 border-amber-300';
+
+            btn02.className = `preset-btn w-full text-left px-4 py-2 rounded-md transition-colors border ${currentC === 0.2 ? activeBlueClass : inactiveClass}`;
+            btnC0.className = `preset-btn w-full text-left px-4 py-2 rounded-md transition-colors border ${Math.abs(currentC - c_0) < 0.0001 ? activeAmberClass : inactiveClass}`;
+            btn01.className = `preset-btn w-full text-left px-4 py-2 rounded-md transition-colors border ${currentC === 0.1 ? activeBlueClass : inactiveClass}`;
+
+            // Clear Button Sichtbarkeit
+            if (customPaths.length > 0) {
+                btnClear.classList.remove('hidden');
+            } else {
+                btnClear.classList.add('hidden');
+            }
+        }
+
+        // Handler: Änderung von C
+        function handleCChange(newC) {
+            currentC = newC;
+            customPaths = []; // Pfade beim Wechsel löschen
+            updateUI();
+            draw();
+        }
+
+        // Event Listeners
+        cSlider.addEventListener('input', (e) => {
+            handleCChange(parseFloat(e.target.value));
+        });
+
+        btn02.addEventListener('click', () => handleCChange(0.2));
+        btnC0.addEventListener('click', () => handleCChange(c_0));
+        btn01.addEventListener('click', () => handleCChange(0.1));
+
+        btnClear.addEventListener('click', () => {
+            customPaths = [];
+            updateUI();
+            draw();
+        });
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Pixel zurück zu Koordinaten rechnen
+            const u = uMin + (x / rect.width) * (uMax - uMin);
+            const v = vMin + ((rect.height - y) / rect.height) * (vMax - vMin);
+
+            // Neuen Pfad berechnen
+            const newPath = integratePath(u, v, currentC, true, 35000);
+            customPaths.push(newPath);
+            
+            updateUI();
+            draw();
+        });
+
+        // Initiale Ausführung
+        updateUI();
+        draw();
+
+    </script>
+</body>
+</html>

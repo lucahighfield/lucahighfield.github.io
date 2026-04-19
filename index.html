@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Experimentalphysik 2 — Visualisierung</title>
+  <title>Physikalische Konzepte — Visualisiert</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -79,6 +79,7 @@
       letter-spacing: 0.15em;
       color: var(--accent);
       margin-bottom: 1.25rem;
+      transition: color 0.2s ease;
     }
 
     .eyebrow::before {
@@ -86,6 +87,7 @@
       width: 24px;
       height: 1.5px;
       background: var(--accent);
+      transition: background 0.2s ease;
     }
 
     h1 {
@@ -110,6 +112,28 @@
 
     .intro p + p {
       margin-top: 0.5rem;
+    }
+
+    /* Back/breadcrumb button inside header (when inside a course) */
+    .header-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: none;
+      border: none;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+      font-family: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 0.4rem 0;
+      margin-bottom: 1rem;
+      transition: color 0.15s ease, transform 0.15s ease;
+    }
+
+    .header-back:hover {
+      color: var(--ink);
+      transform: translateX(-3px);
     }
 
     .choice-grid {
@@ -230,17 +254,13 @@
       transform: translateX(-3px);
     }
 
-    .content-view {
+    .view {
       display: none;
       animation: fadeIn 0.3s ease;
     }
 
-    .content-view.active {
+    .view.active {
       display: block;
-    }
-
-    .landing-view.hidden {
-      display: none;
     }
 
     @keyframes fadeIn {
@@ -343,18 +363,27 @@
 <body>
   <div class="container">
     <header>
-      <div class="eyebrow">Interaktive Visualisierung</div>
-      <h1>Experimentalphysik 2 für Ingenieurwissenschaften,<br><span class="accent">visualisiert.</span></h1>
-      <div class="intro">
-        <p>Sammlung der für die Vorlesungen und Übungen erstellten Visualisierungen.</p>
+      <!-- Back button appears only inside a course -->
+      <button id="header-back" class="header-back" style="display: none;" onclick="showHome()">← Alle Kurse</button>
+      <div id="eyebrow" class="eyebrow">Interaktive Visualisierung</div>
+      <h1 id="main-title">Physikalische Konzepte,<br><span class="accent">visualisiert.</span></h1>
+      <div class="intro" id="intro">
+        <p>Sammlung der in den Vorlesungen und Übungen gezeigten Visualisierungen.</p>
         <p>Alle Visualisierungen wurden mit Google Gemini (Pro + Canvas) erstellt.</p>
       </div>
     </header>
 
-    <!-- Landing: two choice cards -->
-    <div id="landing" class="landing-view">
+    <!-- HOME view: Course selection -->
+    <div id="view-home" class="view active">
+      <div class="choice-grid" id="course-grid">
+        <!-- Courses are generated from COURSES config -->
+      </div>
+    </div>
+
+    <!-- COURSE view: Vorlesungen / Übungen choice -->
+    <div id="view-course" class="view">
       <div class="choice-grid">
-        <button class="choice-card" onclick="showSection('vorlesungen')">
+        <button class="choice-card" onclick="showCategory('vorlesungen')">
           <div>
             <div class="card-number">01</div>
             <div class="card-title">Vorlesungen</div>
@@ -367,7 +396,7 @@
             </svg>
           </span>
         </button>
-        <button class="choice-card" onclick="showSection('uebungen')">
+        <button class="choice-card" onclick="showCategory('uebungen')">
           <div>
             <div class="card-number">02</div>
             <div class="card-title">Übungen</div>
@@ -383,18 +412,11 @@
       </div>
     </div>
 
-    <!-- Vorlesungen view -->
-    <div id="vorlesungen" class="content-view">
-      <button class="back-button" onclick="showLanding()">← Zurück zur Übersicht</button>
-      <h2>Vorlesungen</h2>
-      <div id="vorlesungen-content" class="loading">Lade Inhalte…</div>
-    </div>
-
-    <!-- Übungen view -->
-    <div id="uebungen" class="content-view">
-      <button class="back-button" onclick="showLanding()">← Zurück zur Übersicht</button>
-      <h2>Übungen</h2>
-      <div id="uebungen-content" class="loading">Lade Inhalte…</div>
+    <!-- CATEGORY view: List of Vorlesungen or Übungen -->
+    <div id="view-category" class="view">
+      <button class="back-button" onclick="showCourse(currentCourse)">← Zurück</button>
+      <h2 id="category-title">…</h2>
+      <div id="category-content" class="loading">Lade Inhalte…</div>
     </div>
 
     <footer>
@@ -408,14 +430,63 @@
     const GITHUB_REPO = 'lucahighfield.github.io';
     const BRANCH = 'main';
 
-    // Map section ID → repo folder name (case-sensitive!)
-    const SECTIONS = {
-      vorlesungen: 'Vorlesungen',
-      uebungen: 'Uebungen'
+    // Each course has:
+    //   key: URL hash id (lowercase, no umlauts)
+    //   folder: exact repo folder name
+    //   title: display title (can have line break via \n)
+    //   accent: the colored part of the title
+    //   subtitle: description on the course card
+    //   eyebrow: small label shown above the title on the course page
+    //   intro: course-specific paragraphs shown under the title (array of strings)
+    const COURSES = {
+      experimentalphysik2: {
+        folder: 'Experimentalphysik2',
+        cardTitle: 'Experimentalphysik 2',
+        cardSubtitle: 'für Ingenieurwissenschaften',
+        eyebrow: 'Interaktive Visualisierung',
+        titleMain: 'Experimentalphysik 2 für Ingenieurwissenschaften,',
+        titleAccent: 'visualisiert.',
+        intro: [
+          'Sammlung der in der Vorlesung und Übungen gezeigten Visualisierungen.',
+          'Alle Visualisierungen wurden mit Google Gemini (Pro + Canvas) erstellt.'
+        ]
+      },
+      nonlineardynamics2: {
+        folder: 'NonLinearDynamics2',
+        cardTitle: 'Non-Linear Dynamics 2',
+        cardSubtitle: 'Fortgeschrittene nichtlineare Systeme',
+        eyebrow: 'Interaktive Visualisierung',
+        titleMain: 'Non-Linear Dynamics 2,',
+        titleAccent: 'visualisiert.',
+        intro: [
+          'Sammlung der in der Vorlesung und Übungen gezeigten Visualisierungen.',
+          'Alle Visualisierungen wurden mit Google Gemini (Pro + Canvas) erstellt.'
+        ]
+      }
+    };
+
+    // Home page defaults
+    const HOME_HEADER = {
+      eyebrow: 'Interaktive Visualisierung',
+      titleMain: 'Physikalische Konzepte,',
+      titleAccent: 'visualisiert.',
+      intro: [
+        'Sammlung der in den Vorlesungen und Übungen gezeigten Visualisierungen.',
+        'Alle Visualisierungen wurden mit Google Gemini (Pro + Canvas) erstellt.'
+      ]
+    };
+
+    // Map category key → folder name inside each course
+    const CATEGORIES = {
+      vorlesungen: { folder: 'Vorlesungen', title: 'Vorlesungen' },
+      uebungen: { folder: 'Uebungen', title: 'Übungen' }
     };
     // ===========================
 
     const API_BASE = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents`;
+
+    let currentCourse = null;
+    let currentCategory = null;
 
     function prettifyName(filename) {
       let name = filename.replace(/\.html?$/i, '');
@@ -439,12 +510,101 @@
       return res.json();
     }
 
-    async function renderSection(sectionKey) {
-      const folder = SECTIONS[sectionKey];
-      const target = document.getElementById(`${sectionKey}-content`);
+    // ===== Header handling =====
+    function setHeader({ eyebrow, titleMain, titleAccent, intro, showBack }) {
+      document.getElementById('eyebrow').textContent = eyebrow;
+      document.getElementById('main-title').innerHTML =
+        `${titleMain}<br><span class="accent">${titleAccent}</span>`;
+      const introEl = document.getElementById('intro');
+      introEl.innerHTML = intro.map(p => `<p>${p}</p>`).join('');
+      document.getElementById('header-back').style.display = showBack ? 'inline-flex' : 'none';
+    }
 
+    // ===== View switching =====
+    function setView(viewId) {
+      document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ===== Home: render course cards =====
+    function renderCourses() {
+      const grid = document.getElementById('course-grid');
+      grid.innerHTML = '';
+      Object.entries(COURSES).forEach(([key, course], idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'choice-card';
+        btn.onclick = () => showCourse(key);
+        btn.innerHTML = `
+          <div>
+            <div class="card-number">${String(idx + 1).padStart(2, '0')}</div>
+            <div class="card-title">${course.cardTitle}</div>
+            <div class="card-subtitle">${course.cardSubtitle}</div>
+          </div>
+          <span class="card-arrow">
+            Öffnen
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1 6H15M15 6L10 1M15 6L10 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        `;
+        grid.appendChild(btn);
+      });
+    }
+
+    function showHome() {
+      currentCourse = null;
+      currentCategory = null;
+      setHeader({ ...HOME_HEADER, showBack: false });
+      setView('view-home');
+      history.replaceState(null, '', '#');
+    }
+
+    function showCourse(courseKey) {
+      const course = COURSES[courseKey];
+      if (!course) { showHome(); return; }
+      currentCourse = courseKey;
+      currentCategory = null;
+      setHeader({
+        eyebrow: course.eyebrow,
+        titleMain: course.titleMain,
+        titleAccent: course.titleAccent,
+        intro: course.intro,
+        showBack: true
+      });
+      setView('view-course');
+      history.replaceState(null, '', `#${courseKey}`);
+    }
+
+    async function showCategory(categoryKey) {
+      if (!currentCourse) { showHome(); return; }
+      const course = COURSES[currentCourse];
+      const category = CATEGORIES[categoryKey];
+      if (!category) return;
+
+      currentCategory = categoryKey;
+      setHeader({
+        eyebrow: course.eyebrow,
+        titleMain: course.titleMain,
+        titleAccent: course.titleAccent,
+        intro: course.intro,
+        showBack: true
+      });
+      document.getElementById('category-title').textContent = category.title;
+
+      const target = document.getElementById('category-content');
+      target.className = 'loading';
+      target.textContent = 'Lade Inhalte…';
+      setView('view-category');
+      history.replaceState(null, '', `#${currentCourse}/${categoryKey}`);
+
+      await renderCategory(course.folder, category.folder, target);
+    }
+
+    async function renderCategory(courseFolder, categoryFolder, target) {
       try {
-        const items = await fetchFolder(folder);
+        const basePath = `${courseFolder}/${categoryFolder}`;
+        const items = await fetchFolder(basePath);
 
         const subfolders = items
           .filter(i => i.type === 'dir')
@@ -458,7 +618,7 @@
 
         const subfolderData = await Promise.all(
           subfolders.map(async sub => {
-            const contents = await fetchFolder(`${folder}/${sub.name}`);
+            const contents = await fetchFolder(`${basePath}/${sub.name}`);
             const htmlFiles = contents
               .filter(f => f.type === 'file' && /\.html?$/i.test(f.name))
               .sort((a, b) => naturalSort(a.name, b.name));
@@ -487,7 +647,7 @@
           sub.files.forEach(file => {
             const li = document.createElement('li');
             const a = document.createElement('a');
-            const href = [folder, sub.name, file.name]
+            const href = [courseFolder, categoryFolder, sub.name, file.name]
               .map(encodeURIComponent)
               .join('/');
             a.href = href;
@@ -503,27 +663,28 @@
       }
     }
 
-    function showSection(key) {
-      document.getElementById('landing').classList.add('hidden');
-      document.querySelectorAll('.content-view').forEach(el => el.classList.remove('active'));
-      document.getElementById(key).classList.add('active');
-      renderSection(key);
-      history.replaceState(null, '', `#${key}`);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    // ===== Routing =====
+    function handleHash() {
+      const hash = window.location.hash.replace('#', '');
+      if (!hash) { showHome(); return; }
 
-    function showLanding() {
-      document.querySelectorAll('.content-view').forEach(el => el.classList.remove('active'));
-      document.getElementById('landing').classList.remove('hidden');
-      history.replaceState(null, '', '#');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const parts = hash.split('/');
+      const courseKey = parts[0];
+      const categoryKey = parts[1];
+
+      if (!COURSES[courseKey]) { showHome(); return; }
+
+      if (categoryKey && CATEGORIES[categoryKey]) {
+        currentCourse = courseKey;
+        showCategory(categoryKey);
+      } else {
+        showCourse(courseKey);
+      }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      const hash = window.location.hash.replace('#', '');
-      if (hash === 'vorlesungen' || hash === 'uebungen') {
-        showSection(hash);
-      }
+      renderCourses();
+      handleHash();
     });
   </script>
 </body>

@@ -118,22 +118,34 @@
     .header-back {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      background: none;
-      border: none;
-      color: var(--ink-soft);
-      font-size: 0.9rem;
+      gap: 0.6rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink);
+      font-size: 0.95rem;
       font-family: inherit;
       font-weight: 500;
       cursor: pointer;
-      padding: 0.4rem 0;
-      margin-bottom: 1rem;
-      transition: color 0.15s ease, transform 0.15s ease;
+      padding: 0.65rem 1.15rem;
+      margin-bottom: 1.75rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
 
     .header-back:hover {
-      color: var(--ink);
+      border-color: var(--ink);
+      color: var(--accent);
       transform: translateX(-3px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .header-back svg {
+      transition: transform 0.2s ease;
+    }
+
+    .header-back:hover svg {
+      transform: translateX(-2px);
     }
 
     .choice-grid {
@@ -364,7 +376,12 @@
   <div class="container">
     <header>
       <!-- Back button appears only inside a course -->
-      <button id="header-back" class="header-back" style="display: none;" onclick="showHome()">← Alle Kurse</button>
+      <button id="header-back" class="header-back" style="display: none;" onclick="showHome()">
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 6H1M1 6L6 1M1 6L6 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Alle Kurse
+      </button>
       <div id="eyebrow" class="eyebrow">Interaktive Visualisierung</div>
       <h1 id="main-title">Physikalische Konzepte,<br><span class="accent">visualisiert.</span></h1>
       <div class="intro" id="intro">

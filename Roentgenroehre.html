@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Röntgenröhre - Interaktive Aufgabe</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM (Production) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel für in-browser JSX Kompilierung -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Verhindert unschönes Flackern beim Laden, bevor React initialisiert ist */
+        body { margin: 0; padding: 0; }
+        #root:empty { min-height: 100vh; background-color: #f8fafc; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // Inline SVGs als Ersatz für die lucide-react Icons
+        const ZapIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        );
+        const SettingsIcon = ({ className, size = 20 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        );
+        const PlayIcon = ({ className, size = 16 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        );
+        const RotateIcon = ({ className, size = 16 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
+        );
+        const InfoIcon = ({ className, size = 16 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        );
+
+        const Roentgenroehre = () => {
+            // Physikalische Konstanten (wie in der Aufgabe gegeben)
+            const me = 9.11e-31; // Masse Elektron in kg
+            const qe = 1.6e-19; // Elementarladung in C
+            const c = 299792458; // Lichtgeschwindigkeit in m/s
+
+            // State für die Eingabe
+            const [voltage, setVoltage] = useState(50); // Beschleunigungsspannung in V (Standard aus Aufgabe)
+            const [isPlaying, setIsPlaying] = useState(true);
+            const [electronPos, setElectronPos] = useState(0); // Position 0 bis 100 (%)
+
+            // Berechnungen
+            const energyJ = qe * voltage;
+            const energyEV = voltage; // 1 eV = 1e * 1V
+            const velocity = Math.sqrt((2 * qe * voltage) / me);
+            const relBeta = velocity / c; // v/c Verhältnis
+
+            // Hilfsfunktion zur Formatierung von Zahlen in wissenschaftlicher Notation
+            const formatSci = (num, decimals = 2) => {
+                if (num === 0) return '0.00';
+                const exponent = Math.floor(Math.log10(num));
+                const mantissa = num / Math.pow(10, exponent);
+                return (
+                    <span>
+                        {mantissa.toFixed(decimals)} &middot; 10<sup>{exponent}</sup>
+                    </span>
+                );
+            };
+
+            // Animations-Loop
+            useEffect(() => {
+                let animationFrameId;
+                let lastTime = performance.now();
+
+                const animate = (time) => {
+                    if (isPlaying) {
+                        const deltaTime = time - lastTime;
+                        // Skalierung der Geschwindigkeit für die visuelle Darstellung.
+                        // Die Basis-Geschwindigkeit für 50V (ca. 4.19e6 m/s) soll etwa 2 Sekunden für den Bildschirm brauchen.
+                        const visualSpeedScale = 0.05 / 4.19e6;
+                        const speedScale = velocity * visualSpeedScale;
+
+                        setElectronPos((prev) => {
+                            let next = prev + speedScale * deltaTime;
+                            if (next > 100) return 0; // Reset am Ende
+                            return next;
+                        });
+
+                        lastTime = time;
+                        animationFrameId = requestAnimationFrame(animate);
+                    }
+                };
+
+                if (isPlaying) {
+                    animationFrameId = requestAnimationFrame(animate);
+                }
+
+                return () => {
+                    cancelAnimationFrame(animationFrameId);
+                };
+            }, [isPlaying, velocity]);
+
+            const resetAnimation = () => {
+                setElectronPos(0);
+            };
+
+            // SVG Graph Berechnungen für v(U)
+            const graphWidth = 300;
+            const graphHeight = 150;
+            const maxU = 500;
+            const maxV = Math.sqrt((2 * qe * maxU) / me);
+
+            const graphPath = useMemo(() => {
+                let path = `M 0 ${graphHeight}`;
+                for (let u = 0; u <= maxU; u += 5) {
+                    const v = Math.sqrt((2 * qe * u) / me);
+                    const x = (u / maxU) * graphWidth;
+                    const y = graphHeight - (v / maxV) * graphHeight;
+                    path += ` L ${x} ${y}`;
+                }
+                return path;
+            }, [maxU, maxV, qe, me]);
+
+            const currentGraphX = (voltage / maxU) * graphWidth;
+            const currentGraphY = graphHeight - (velocity / maxV) * graphHeight;
+
+            return (
+                <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800">
+                    <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+                        
+                        {/* Header */}
+                        <div className="bg-slate-800 text-white p-6">
+                            <h1 className="text-2xl font-bold flex items-center gap-3">
+                                <ZapIcon className="text-yellow-400" />
+                                Interaktive Aufgabe: Röntgenröhre
+                            </h1>
+                            <p className="text-slate-300 mt-2 text-sm md:text-base">
+                                Beschleunigung eines Elektrons in einem homogenen elektrischen Feld.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                            
+                            {/* Linke Spalte: Steuerung & Physik */}
+                            <div className="p-6 space-y-8">
+                                
+                                {/* Steuerung */}
+                                <div className="space-y-4">
+                                    <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-700">
+                                        <SettingsIcon size={20} />
+                                        Parameter
+                                    </h2>
+                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                        <label className="flex justify-between text-sm font-medium text-slate-700 mb-2">
+                                            <span>Beschleunigungsspannung (U)</span>
+                                            <span className="text-blue-600 font-bold">{voltage} V</span>
+                                        </label>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="500"
+                                            step="1"
+                                            value={voltage}
+                                            onChange={(e) => setVoltage(Number(e.target.value))}
+                                            className="w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                        />
+                                        <div className="flex justify-between text-xs text-slate-400 mt-1">
+                                            <span>0 V</span>
+                                            <span>Aufgabe: 50 V</span>
+                                            <span>500 V</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Live-Ergebnisse */}
+                                <div className="space-y-4">
+                                    <h2 className="text-lg font-semibold text-slate-700">Berechnete Werte</h2>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                            <div className="text-xs text-blue-600 font-semibold mb-1 uppercase tracking-wider">
+                                                Kinetische Energie
+                                            </div>
+                                            <div className="text-lg font-bold text-slate-800">
+                                                {formatSci(energyJ)} J
+                                            </div>
+                                            <div className="text-sm text-slate-500 mt-1">
+                                                = {energyEV} eV
+                                            </div>
+                                        </div>
+                                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                                            <div className="text-xs text-emerald-600 font-semibold mb-1 uppercase tracking-wider">
+                                                Endgeschwindigkeit
+                                            </div>
+                                            <div className="text-lg font-bold text-slate-800">
+                                                {formatSci(velocity)} m/s
+                                            </div>
+                                            <div className="text-sm text-slate-500 mt-1">
+                                                ≈ {(relBeta * 100).toFixed(4)}% der Lichtgeschw. c
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {relBeta > 0.1 && (
+                                        <div className="bg-amber-50 border-l-4 border-amber-500 p-3 text-sm text-amber-800 rounded-r-lg flex gap-2">
+                                            <InfoIcon size={16} className="mt-0.5 shrink-0" />
+                                            <p>
+                                                Bei v &gt; 10% der Lichtgeschwindigkeit (ca. 2500 V) sollten relativistische Effekte normalerweise nicht mehr vernachlässigt werden.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                            </div>
+
+                            {/* Rechte Spalte: Visualisierung & Graph */}
+                            <div className="p-6 bg-slate-50 flex flex-col gap-8">
+                                
+                                {/* Simulation */}
+                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="font-semibold text-slate-700">Elektronenkanone Simulation</h3>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setIsPlaying(!isPlaying)}
+                                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition-colors"
+                                                title={isPlaying ? "Pause" : "Play"}
+                                            >
+                                                <PlayIcon size={16} className={isPlaying ? "hidden" : "block"} />
+                                                <span className={`w-4 h-4 flex items-center justify-center font-bold text-xs ${!isPlaying ? "hidden" : "block"}`}>||</span>
+                                            </button>
+                                            <button
+                                                onClick={resetAnimation}
+                                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition-colors"
+                                                title="Zurücksetzen"
+                                            >
+                                                <RotateIcon size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Canvas/SVG Area für Simulation */}
+                                    <div className="relative w-full h-32 bg-slate-900 rounded-lg overflow-hidden border-2 border-slate-800">
+                                        {/* E-Feld Linien (Hintergrund) */}
+                                        <div className="absolute inset-0 flex flex-col justify-evenly opacity-30 px-8 py-2">
+                                            {[...Array(5)].map((_, i) => (
+                                                <div key={i} className="flex items-center text-blue-400 text-xs gap-1">
+                                                    <span className="w-full h-px bg-blue-400"></span>
+                                                    <span>E</span>
+                                                    <span className="w-full h-px bg-blue-400"></span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Kathode (Minus-Pol, links) */}
+                                        <div className="absolute left-0 top-0 bottom-0 w-8 bg-slate-700 flex items-center justify-center border-r-2 border-red-400 z-10 shadow-[2px_0_10px_rgba(248,113,113,0.3)]">
+                                            <span className="text-white font-bold text-xl">-</span>
+                                            <span className="absolute -bottom-6 text-xs text-slate-400 left-1">Kathode</span>
+                                        </div>
+
+                                        {/* Anode (Plus-Pol, rechts) */}
+                                        <div className="absolute right-0 top-0 bottom-0 w-8 bg-slate-700 flex items-center justify-center border-l-2 border-green-400 z-10 shadow-[-2px_0_10px_rgba(74,222,128,0.3)]">
+                                            <span className="text-white font-bold text-xl">+</span>
+                                            <span className="absolute -bottom-6 text-xs text-slate-400 right-1">Anode</span>
+                                        </div>
+
+                                        {/* Das Elektron */}
+                                        <div
+                                            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-cyan-400 rounded-full shadow-[0_0_15px_rgba(34,211,238,0.8)] z-20"
+                                            style={{
+                                                left: `calc(2rem + (100% - 4rem) * ${electronPos / 100})`,
+                                                transition: isPlaying ? 'none' : 'left 0.1s linear'
+                                            }}
+                                        >
+                                            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] text-slate-900 font-bold">e⁻</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Graph */}
+                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                    <h3 className="font-semibold text-slate-700 mb-4 text-sm">Geschwindigkeit als Funktion der Spannung v(U)</h3>
+                                    <div className="relative flex justify-center mt-2">
+                                        <svg width={graphWidth} height={graphHeight} className="overflow-visible">
+                                            {/* Achsen */}
+                                            <line x1="0" y1={graphHeight} x2={graphWidth + 10} y2={graphHeight} stroke="#cbd5e1" strokeWidth="2" markerEnd="url(#arrow)" />
+                                            <line x1="0" y1={graphHeight} x2="0" y2="-10" stroke="#cbd5e1" strokeWidth="2" markerEnd="url(#arrow)" />
+                                            
+                                            {/* Achsenbeschriftung */}
+                                            <text x={graphWidth + 15} y={graphHeight + 4} className="text-[10px] fill-slate-500 font-medium">U [V]</text>
+                                            <text x="-15" y="-15" className="text-[10px] fill-slate-500 font-medium">v [m/s]</text>
+                                            <text x={graphWidth / 2} y={graphHeight + 15} className="text-[10px] fill-slate-400 text-center">Wurzelfunktion (nicht linear)</text>
+
+                                            {/* Marker Definition für Pfeile */}
+                                            <defs>
+                                                <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+                                                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd5e1" />
+                                                </marker>
+                                            </defs>
+
+                                            {/* Funktionsgraph */}
+                                            <path d={graphPath} fill="none" stroke="#3b82f6" strokeWidth="2" />
+                                            
+                                            {/* Aktueller Punkt */}
+                                            {voltage > 0 && (
+                                                <g>
+                                                    {/* Hilfslinien */}
+                                                    <line x1={currentGraphX} y1={graphHeight} x2={currentGraphX} y2={currentGraphY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4" />
+                                                    <line x1="0" y1={currentGraphY} x2={currentGraphX} y2={currentGraphY} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4" />
+                                                    
+                                                    {/* Der Punkt */}
+                                                    <circle cx={currentGraphX} cy={currentGraphY} r="4" fill="#ef4444" className="animate-pulse" />
+                                                    <text x={currentGraphX + 8} y={currentGraphY - 8} className="text-[10px] fill-slate-700 font-bold bg-white/80 px-1">
+                                                        {formatSci(velocity)} m/s
+                                                    </text>
+                                                </g>
+                                            )}
+                                        </svg>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        {/* Formel / Lösungs-Bereich (Unten) */}
+                        <div className="bg-slate-100 p-6 border-t border-slate-200">
+                            <h2 className="text-lg font-semibold text-slate-800 mb-4">Schritt-für-Schritt Lösung (für {voltage} V)</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-slate-700">
+                                
+                                <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col">
+                                    <div className="font-semibold text-blue-600 mb-2">1. Energieerhaltungssatz</div>
+                                    <p className="mb-2 flex-grow">Die elektrische potentielle Energie <span className="font-serif italic">E<sub>pot</sub></span> wird vollständig in kinetische Energie <span className="font-serif italic">E<sub>kin</sub></span> umgewandelt.</p>
+                                    
+                                    {/* MathML für perfekte Formeldarstellung */}
+                                    <div className="bg-slate-50 p-3 rounded flex items-center justify-center text-lg overflow-x-auto">
+                                        <math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+                                            <msub><mi>E</mi><mi>pot</mi></msub>
+                                            <mo>=</mo>
+                                            <msub><mi>E</mi><mi>kin</mi></msub>
+                                        </math>
+                                    </div>
+                                    <div className="bg-slate-50 p-3 rounded flex items-center justify-center text-lg mt-2 overflow-x-auto">
+                                        <math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+                                            <msub><mi>q</mi><mi>e</mi></msub>
+                                            <mo>&middot;</mo>
+                                            <mi>U</mi>
+                                            <mo>=</mo>
+                                            <mfrac><mn>1</mn><mn>2</mn></mfrac>
+                                            <msub><mi>m</mi><mi>e</mi></msub>
+                                            <mo>&middot;</mo>
+                                            <msup><mi>v</mi><mn>2</mn></msup>
+                                        </math>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-lg shadow-sm flex flex-col">
+                                    <div className="font-semibold text-blue-600 mb-2">2. Nach v umstellen</div>
+                                    <p className="mb-2 flex-grow">Multiplikation mit 2 und Division durch <span className="font-serif italic">m<sub>e</sub></span>, danach Wurzel ziehen:</p>
+                                    
+                                    {/* Native MathML Wurzel und Bruch */}
+                                    <div className="bg-slate-50 p-3 rounded flex items-center justify-center h-24 text-xl overflow-x-auto">
+                                        <math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+                                            <mi>v</mi>
+                                            <mo>=</mo>
+                                            <msqrt>
+                                                <mfrac>
+                                                    <mrow>
+                                                        <mn>2</mn>
+                                                        <mo>&middot;</mo>
+                                                        <msub><mi>q</mi><mi>e</mi></msub>
+                                                        <mo>&middot;</mo>
+                                                        <mi>U</mi>
+                                                    </mrow>
+                                                    <msub><mi>m</mi><mi>e</mi></msub>
+                                                </mfrac>
+                                            </msqrt>
+                                        </math>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-emerald-500 flex flex-col">
+                                    <div className="font-semibold text-emerald-600 mb-2">3. Werte einsetzen</div>
+                                    <div className="font-serif text-[15px] space-y-2 mb-2 flex-grow">
+                                        <p><span className="italic">q<sub>e</sub></span> = 1,6 &middot; 10<sup>-19</sup> C</p>
+                                        <p><span className="italic">m<sub>e</sub></span> = 9,11 &middot; 10<sup>-31</sup> kg</p>
+                                        <p><span className="italic">U</span> = {voltage} V</p>
+                                    </div>
+                                    <div className="bg-emerald-50 p-3 rounded flex items-center justify-center font-serif text-lg font-bold text-emerald-800 mt-2">
+                                        <span className="italic">v</span> <span className="mx-2">≈</span> {formatSci(velocity)} <span className="ml-1 font-sans text-sm font-normal">m/s</span>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Roentgenroehre />);
+    </script>
+</body>
+</html>

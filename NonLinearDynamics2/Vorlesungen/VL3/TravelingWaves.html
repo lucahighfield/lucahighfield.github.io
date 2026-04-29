@@ -81,6 +81,13 @@
             // --- Konstanten für das Zeichnen ---
             const W = 1000;
             const H = 500;
+            
+            // High-DPI (Retina) Fix: Erhöht die interne Auflösung des Canvas für scharfe Schriften und Linien
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            ctx.scale(dpr, dpr);
+
             const ox = 100; // x-Ursprung
             const oy = 400; // y-Ursprung
             

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reaction Diffusion Wave Visualization</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Verhindert das Markieren von Text beim schnellen Klicken auf die Buttons */
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        /* Styling für die Schieberegler */
+        input[type=range] {
+            accent-color: #2563eb;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen m-0 p-0">
+
+    <div class="flex flex-col items-center justify-center w-full min-h-screen p-4">
+        <div class="w-full max-w-5xl bg-white rounded-xl shadow-xl overflow-hidden flex flex-col border border-gray-200">
+            
+            <!-- Folien-Titel & Info -->
+            <div class="p-6 border-b border-gray-100 bg-white z-10 flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">
+                        Interactive 1-Component RD-System
+                    </h1>
+                    <p class="text-gray-500 mt-2 text-sm">
+                        Explore how the unstable threshold (u₂) and diffusion strength dictate the traveling wave.
+                    </p>
+                </div>
+                <div class="hidden md:block px-4 py-2 bg-blue-50 text-blue-800 rounded-lg text-sm font-semibold border border-blue-100 shadow-sm">
+                    Interactive Mode Active
+                </div>
+            </div>
+
+            <!-- Visualisierungs-Bereich -->
+            <div class="relative w-full aspect-[2/1] bg-[#fafafa] overflow-hidden flex items-center justify-center">
+                <canvas id="rd-canvas" width="1000" height="500" class="w-full h-full object-contain"></canvas>
+            </div>
+
+            <!-- Parameter-Steuerung (Die ERWEITERUNG) -->
+            <div class="bg-white p-5 border-t border-gray-200 flex flex-col sm:flex-row gap-8 shadow-inner">
+                <div class="flex-1">
+                    <label class="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                        <span>Threshold Level (u₂) Position</span>
+                        <span id="u2-badge" class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs border border-gray-200"></span>
+                    </label>
+                    <input type="range" id="slider-u2" min="160" max="340" value="300" class="w-full cursor-pointer">
+                    <p class="text-xs text-gray-500 mt-2 font-medium">Crucial: Determines the direction and speed of the wave.</p>
+                </div>
+                <div class="flex-1">
+                    <label class="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                        <span>Diffusion Strength (w)</span>
+                    </label>
+                    <input type="range" id="slider-w" min="15" max="80" value="40" class="w-full cursor-pointer">
+                    <p class="text-xs text-gray-500 mt-2 font-medium">Controls how wide the interface smears during diffusion.</p>
+                </div>
+            </div>
+
+            <!-- Kontroll-Panel (Steuerung für die Vorlesung) -->
+            <div class="bg-gray-100 p-4 border-t border-gray-300 flex flex-col gap-4 no-select">
+                <div class="flex justify-between items-center w-full">
+                    
+                    <button id="btn-prev" class="px-6 py-2 rounded-md font-bold transition-colors bg-white text-gray-700 hover:bg-gray-200 shadow-sm border border-gray-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed disabled:border-transparent disabled:shadow-none">
+                        &larr; Previous Step
+                    </button>
+                    
+                    <div id="step-indicators" class="flex space-x-3">
+                        <!-- Dots werden per JavaScript generiert -->
+                    </div>
+
+                    <button id="btn-next" class="px-6 py-2 rounded-md font-bold transition-colors bg-blue-600 text-white hover:bg-blue-700 shadow-sm disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none">
+                        Next Step &rarr;
+                    </button>
+                </div>
+
+                <div class="text-center text-sm font-medium text-gray-600">
+                    Current Phase: <span id="current-phase-text" class="text-blue-700 font-bold bg-blue-100 px-2 py-1 rounded">Initial Condition</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // --- State und Konfiguration ---
+            const steps = [
+                "Initial Condition",
+                "Diffusion Phase",
+                "Reaction Phase",
+                "Traveling Wave Result"
+            ];
+            
+            let currentStep = 0;
+            let progress = 0;
+            let waveTime = 0;
+            let animationId;
+
+            // --- DOM Elemente ---
+            const canvas = document.getElementById('rd-canvas');
+            const ctx = canvas.getContext('2d');
+            const btnPrev = document.getElementById('btn-prev');
+            const btnNext = document.getElementById('btn-next');
+            const stepIndicatorsContainer = document.getElementById('step-indicators');
+            const currentPhaseText = document.getElementById('current-phase-text');
+            
+            // Slider DOM
+            const sliderU2 = document.getElementById('slider-u2');
+            const sliderW = document.getElementById('slider-w');
+            const u2Badge = document.getElementById('u2-badge');
+
+            // --- Konstanten für das Zeichnen ---
+            const W = 1000;
+            const H = 500;
+            
+            // High-DPI (Retina) Fix
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            ctx.scale(dpr, dpr);
+
+            const ox = 100; // x-Ursprung
+            const oy = 400; // y-Ursprung
+            
+            const u3 = 150; // oberes stabiles Niveau
+            const u1 = 350; // unteres stabiles Niveau
+            const x0 = 400; // Initiale Position der Stufe (etwas mittiger für Dynamik)
+
+            // Dynamische Parameter aus den Slidern
+            let u2 = parseInt(sliderU2.value);
+            let w = parseInt(sliderW.value);
+
+            // Event Listeners für Slider
+            sliderU2.addEventListener('input', (e) => {
+                u2 = parseInt(e.target.value);
+                waveTime = 0; // Welle zurücksetzen, wenn u2 geändert wird
+            });
+
+            sliderW.addEventListener('input', (e) => {
+                w = parseInt(e.target.value);
+            });
+
+            // --- UI Initialisierung und Update ---
+            function initUI() {
+                steps.forEach((stepName, idx) => {
+                    const dot = document.createElement('div');
+                    dot.className = 'w-3.5 h-3.5 rounded-full cursor-pointer transition-all bg-gray-300 hover:bg-gray-400 step-dot shadow-inner';
+                    dot.title = stepName;
+                    dot.addEventListener('click', () => {
+                        currentStep = idx;
+                        updateUI();
+                    });
+                    stepIndicatorsContainer.appendChild(dot);
+                });
+                updateUI();
+            }
+
+            function updateUI() {
+                btnPrev.disabled = currentStep === 0;
+                btnNext.disabled = currentStep === steps.length - 1;
+                currentPhaseText.textContent = steps[currentStep];
+
+                const dots = document.querySelectorAll('.step-dot');
+                dots.forEach((dot, idx) => {
+                    if (idx === currentStep) {
+                        dot.className = 'w-3.5 h-3.5 rounded-full cursor-pointer transition-all step-dot bg-blue-600 scale-125 shadow-md ring-2 ring-blue-300';
+                    } else if (idx < currentStep) {
+                        dot.className = 'w-3.5 h-3.5 rounded-full cursor-pointer transition-all step-dot bg-blue-400 shadow-inner';
+                    } else {
+                        dot.className = 'w-3.5 h-3.5 rounded-full cursor-pointer transition-all step-dot bg-gray-300 hover:bg-gray-400 shadow-inner';
+                    }
+                });
+            }
+
+            btnPrev.addEventListener('click', () => { if (currentStep > 0) { currentStep--; updateUI(); }});
+            btnNext.addEventListener('click', () => { if (currentStep < steps.length - 1) { currentStep++; updateUI(); }});
+
+            // --- Zeichen-Hilfsfunktionen ---
+            function drawArrow(fromx, fromy, tox, toy, arrowWidth, color) {
+                const headlen = 12; 
+                const dx = tox - fromx;
+                const dy = toy - fromy;
+                const angle = Math.atan2(dy, dx);
+                
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = arrowWidth;
+                ctx.moveTo(fromx, fromy);
+                ctx.lineTo(tox, toy);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.fillStyle = color;
+                ctx.moveTo(tox, toy);
+                ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+                ctx.fill();
+            }
+
+            function drawSigmoid(x_center, color, lineWidth, opacity = 1) {
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(${color}, ${opacity})`;
+                ctx.lineWidth = lineWidth;
+                for (let x = ox; x <= 950; x++) {
+                    const y = u1 + (u3 - u1) / (1 + Math.exp((x - x_center) / w));
+                    if (x === ox) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            // Grid Background
+            function drawGrid() {
+                ctx.beginPath();
+                ctx.strokeStyle = "#f0f0f0";
+                ctx.lineWidth = 1;
+                for(let i=100; i<950; i+=50) { ctx.moveTo(i, 50); ctx.lineTo(i, 400); }
+                for(let i=50; i<400; i+=50) { ctx.moveTo(100, i); ctx.lineTo(950, i); }
+                ctx.stroke();
+            }
+
+            // --- Haupt-Zeichenschleife ---
+            function renderLoop() {
+                // Weiche Animation der Schritte
+                if (Math.abs(progress - currentStep) > 0.005) progress += Math.sign(currentStep - progress) * 0.04;
+                else progress = currentStep;
+                
+                const p = Math.max(0, progress);
+
+                if (p > 2.9) waveTime += 1;
+                else waveTime = 0;
+
+                // Dynamische Mathematik berechnen
+                const E = (u2 - u3) / (u1 - u2);
+                const xc = x0 + w * Math.log(E); // Schnittpunkt der Sigmoide mit u2
+                const waveSpeed = (xc - x0) * 0.03; // Geschwindigkeit proportional zur Verschiebung
+
+                // Badge Text Update
+                if (Math.abs(u2 - 250) < 2) u2Badge.textContent = "Exactly in Middle";
+                else if (u2 > 250) u2Badge.textContent = "Closer to u₁";
+                else u2Badge.textContent = "Closer to u₃";
+
+                // Canvas leeren & Grid zeichnen
+                ctx.clearRect(0, 0, W, H);
+                drawGrid();
+
+                // Achsen zeichnen
+                ctx.beginPath();
+                ctx.moveTo(ox, 50); ctx.lineTo(ox, oy); ctx.lineTo(950, oy);
+                ctx.strokeStyle = "black"; ctx.lineWidth = 2; ctx.stroke();
+                
+                drawArrow(950, oy, 960, oy, 2, "black");
+                drawArrow(ox, 50, ox, 40, 2, "black");
+
+                ctx.font = "italic 22px 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+                ctx.fillStyle = "black";
+                ctx.fillText("u", ox - 25, 50);
+                ctx.fillText("x", 950, oy + 25);
+                
+                ctx.font = "18px sans-serif";
+                ctx.fillStyle = "black";
+                ctx.fillText("u₃", ox - 35, u3 + 6);
+                ctx.fillText("u₁", ox - 35, u1 + 6);
+                
+                // Dynamisches u2 Label (Rot, um Wichtigkeit zu zeigen)
+                ctx.fillStyle = "#dc2626";
+                ctx.font = "bold 18px sans-serif";
+                ctx.fillText("u₂", ox - 35, u2 + 6);
+
+                // Niveaus zeichnen
+                ctx.setLineDash([5, 5]);
+                // u2 Linie
+                ctx.beginPath(); ctx.moveTo(ox, u2); ctx.lineTo(950, u2);
+                ctx.strokeStyle = "rgba(220, 38, 38, 0.5)"; ctx.stroke(); 
+                // u1, u3
+                ctx.beginPath(); ctx.moveTo(ox, u1); ctx.lineTo(950, u1);
+                ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"; ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(ox, u3); ctx.lineTo(950, u3);
+                ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"; ctx.stroke();
+                ctx.setLineDash([]);
+
+                // --- PHASE 1 bis 3 ---
+                if (p < 3.0) {
+                    const gedankenOpacity = 1 - Math.max(0, p - 2);
+                    
+                    // Initiale Stufe (Phase 0)
+                    ctx.beginPath();
+                    ctx.moveTo(ox, u3); ctx.lineTo(x0, u3);
+                    ctx.lineTo(x0, u1); ctx.lineTo(950, u1);
+                    ctx.strokeStyle = `rgba(37, 99, 235, ${gedankenOpacity})`; 
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    ctx.fillStyle = `rgba(37, 99, 235, ${gedankenOpacity})`;
+                    ctx.font = "bold 16px sans-serif";
+                    ctx.fillText("Initial Step Function", x0 - 165, u3 - 20);
+
+                    // Diffusion (Phase 1)
+                    if (p > 0) {
+                        const diffOpacity = Math.min(1, p) * gedankenOpacity;
+                        drawSigmoid(x0, "249, 115, 22", 3, diffOpacity); // Orange
+                        ctx.fillStyle = `rgba(249, 115, 22, ${diffOpacity})`;
+                        ctx.fillText("+ Diffusion smears the interface", x0 + 20, u3 - 20);
+                    }
+
+                    // Reaktion (Phase 2)
+                    if (p > 1) {
+                        const reactP = Math.min(1, p - 1);
+                        const arrowOpacity = Math.min(1, reactP * 2) * gedankenOpacity;
+                        
+                        // Dynamische Pfeile zeichnen!
+                        // Zeigt genau, welcher Bereich von der Reaktion nach u3 oder u1 gezogen wird.
+                        for(let ax = x0 - 150; ax <= x0 + 150; ax += 30) {
+                            const yCurve = u1 + (u3 - u1) / (1 + Math.exp((ax - x0) / w));
+                            // Ziel ist u3, wenn u > u2 (also y < u2). Ziel ist u1, wenn u < u2 (also y > u2).
+                            const yTarget = yCurve < u2 ? u3 : u1; 
+                            
+                            const currentArrowY = yCurve + (yTarget - yCurve) * Math.min(1, reactP * 2.5);
+                            if (Math.abs(yCurve - currentArrowY) > 5) {
+                                drawArrow(ax, yCurve, ax, currentArrowY, 2, `rgba(37, 99, 235, ${arrowOpacity})`);
+                            }
+                        }
+
+                        // Resultierendes Interface
+                        if (reactP > 0.5) {
+                            const resultOpacity = (reactP - 0.5) * 2 * gedankenOpacity;
+                            
+                            ctx.setLineDash([8, 6]);
+                            ctx.beginPath();
+                            ctx.moveTo(ox, u3); ctx.lineTo(xc, u3);
+                            ctx.lineTo(xc, u1); ctx.lineTo(950, u1);
+                            ctx.strokeStyle = `rgba(37, 99, 235, ${resultOpacity})`;
+                            ctx.lineWidth = 3;
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+
+                            // Dynamischer Text basierend auf xc vs x0
+                            ctx.fillStyle = `rgba(37, 99, 235, ${resultOpacity})`;
+                            ctx.font = "bold 18px sans-serif";
+                            
+                            let directionText = "";
+                            if (Math.abs(xc - x0) < 2) {
+                                directionText = "Interface stays in place (u₂ is perfectly balanced!)";
+                                ctx.fillText(directionText, x0 + 60, (u1+u3)/2);
+                            } else {
+                                directionText = xc < x0 ? "moves left" : "moves right";
+                                drawArrow(x0, (u1+u3)/2, xc, (u1+u3)/2, 3, `rgba(37, 99, 235, ${resultOpacity})`);
+                                ctx.fillText(`Reaction pulls interface ${xc < x0 ? 'LEFT' : 'RIGHT'}`, Math.max(x0, xc) + 20, (u1+u3)/2);
+                            }
+                        }
+                    }
+                } 
+                
+                // --- PHASE 4 (Traveling Wave) ---
+                if (p > 2.0) {
+                    const waveOpacity = Math.min(1, p - 2);
+                    const currentWaveX = xc + (waveTime * waveSpeed); 
+                    
+                    drawSigmoid(currentWaveX, "101, 163, 13", 4, waveOpacity); // Lime
+                    
+                    ctx.fillStyle = `rgba(0, 0, 0, ${waveOpacity})`;
+                    ctx.font = "bold 22px sans-serif";
+                    
+                    if (Math.abs(waveSpeed) < 0.05) {
+                        ctx.fillText("Standing Wave (Speed = 0)", ox + 50, u3 + 40);
+                        ctx.font = "16px sans-serif";
+                        ctx.fillText("Diffusion and reaction forces perfectly cancel out.", ox + 50, u3 + 65);
+                    } else {
+                        const dir = waveSpeed > 0 ? "RIGHT" : "LEFT";
+                        drawArrow(currentWaveX - (waveSpeed > 0 ? 40 : -40), u2, currentWaveX + (waveSpeed > 0 ? 40 : -40), u2, 4, `rgba(101, 163, 13, ${waveOpacity})`);
+                        
+                        ctx.fillText(`Traveling Wave moves ${dir}`, ox + 50, u3 + 40);
+                        ctx.font = "16px sans-serif";
+                        ctx.fillText(`Because u₂ is closer to ${waveSpeed > 0 ? 'u₁' : 'u₃'}, the ${waveSpeed > 0 ? 'upper' : 'lower'} state takes over the domain.`, ox + 50, u3 + 65);
+                    }
+                }
+
+                animationId = requestAnimationFrame(renderLoop);
+            }
+
+            // Start
+            initUI();
+            renderLoop();
+        });
+    </script>
+</body>
+</html>

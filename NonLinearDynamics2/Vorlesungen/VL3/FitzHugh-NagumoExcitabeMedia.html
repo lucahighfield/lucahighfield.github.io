@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excitable Media: FitzHugh-Nagumo Model</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for webkit if needed, but keeping it simple */
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-slate-200 p-4 md:p-8 min-h-screen font-sans">
+
+    <div class="flex flex-col h-full w-full bg-slate-50 text-slate-800 p-6 rounded-xl shadow-lg max-w-6xl mx-auto border border-slate-200">
+        
+        <!-- Header -->
+        <div class="mb-6 border-b border-slate-200 pb-4">
+            <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                Excitable Media: FitzHugh-Nagumo Model
+            </h1>
+            <p class="text-slate-600 mt-2">
+                Interactive visualization for Figure 10 of the script. A supercritical perturbation (u &uarr;)
+                leads to a large excursion in phase space (A &rarr; B &rarr; C &rarr; D &rarr; O).
+            </p>
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-6">
+            
+            <!-- Controls Panel -->
+            <div class="w-full lg:w-1/3 bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col gap-6">
+                
+                <div>
+                    <h2 class="font-semibold text-lg mb-4 text-slate-800">Parameters & Controls</h2>
+                    
+                    <div class="mb-5">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">
+                            Perturbation size &Delta;u (<span id="pertValueDisplay">0.40</span>)
+                        </label>
+                        <input 
+                            type="range" 
+                            id="pertSlider"
+                            min="0.1" 
+                            max="1.0" 
+                            step="0.05" 
+                            value="0.4" 
+                            class="w-full cursor-pointer accent-blue-600"
+                        />
+                        <p class="text-xs text-slate-500 mt-1">
+                            Values &lt; 0.3 are subcritical. The system immediately returns to O.
+                        </p>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">
+                            Time scale ratio &epsilon; (<span id="epsValueDisplay">0.050</span>)
+                        </label>
+                        <input 
+                            type="range" 
+                            id="epsSlider"
+                            min="0.01" 
+                            max="0.2" 
+                            step="0.01" 
+                            value="0.05" 
+                            class="w-full cursor-pointer accent-blue-600"
+                        />
+                        <p class="text-xs text-slate-500 mt-1">
+                            Controls how fast the inhibitor v reacts. Small &epsilon; means sharp u-pulses.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3 mt-auto">
+                    <button 
+                        id="btnTrigger"
+                        class="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-sm"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        Trigger perturbation
+                    </button>
+                    
+                    <button 
+                        id="btnReset"
+                        class="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg transition-colors border border-slate-300"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                            <path d="M3 3v5h5"></path>
+                        </svg>
+                        Reset
+                    </button>
+                </div>
+                
+                <div class="mt-4 p-4 bg-amber-50 rounded border border-amber-200 text-sm text-amber-800">
+                    <strong>Observation Tip:</strong> Click on "Trigger perturbation". In the phase space on the right, you'll see the trajectory jump up from O. If the perturbation is strong enough, it crosses the middle nullcline (dashed curve) and the system must take the long detour over the right branch (excitation).
+                </div>
+            </div>
+
+            <!-- Canvases Panel -->
+            <div class="w-full lg:w-2/3 flex flex-col gap-4">
+                
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[300px]">
+                    <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Time Series (u, v over t)</h3>
+                    <div class="relative flex-grow w-full rounded overflow-hidden bg-slate-50 border border-slate-100">
+                        <canvas id="timeCanvas" width="800" height="250" class="absolute inset-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[400px]">
+                    <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Phase Space (u over v)</h3>
+                    <div class="relative flex-grow w-full rounded overflow-hidden bg-slate-50 border border-slate-100">
+                        <canvas id="phaseCanvas" width="800" height="350" class="absolute inset-0 w-full h-full object-contain"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // UI Elements
+            const pertSlider = document.getElementById('pertSlider');
+            const epsSlider = document.getElementById('epsSlider');
+            const pertDisplay = document.getElementById('pertValueDisplay');
+            const epsDisplay = document.getElementById('epsValueDisplay');
+            const btnTrigger = document.getElementById('btnTrigger');
+            const btnReset = document.getElementById('btnReset');
+            
+            const timeCanvas = document.getElementById('timeCanvas');
+            const phaseCanvas = document.getElementById('phaseCanvas');
+            const tCtx = timeCanvas.getContext('2d');
+            const pCtx = phaseCanvas.getContext('2d');
+
+            // Constants
+            const gamma = 0.5;
+            const beta = 0.408;
+            const dt = 0.05;
+
+            // Simulation State
+            let sim = {
+                u: -0.6,
+                v: -0.384,
+                time: 0,
+                history: [],
+                maxHistory: 1200,
+                isRunning: true,
+                perturbationSize: parseFloat(pertSlider.value),
+                epsilon: parseFloat(epsSlider.value)
+            };
+
+            // Event Listeners
+            pertSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                sim.perturbationSize = val;
+                pertDisplay.textContent = val.toFixed(2);
+            });
+
+            epsSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                sim.epsilon = val;
+                epsDisplay.textContent = val.toFixed(3);
+            });
+
+            btnTrigger.addEventListener('click', () => {
+                sim.u += sim.perturbationSize;
+            });
+
+            btnReset.addEventListener('click', () => {
+                sim.u = -0.6;
+                sim.v = -0.384;
+                sim.time = 0;
+                sim.history = [];
+            });
+
+            // Handle Canvas Resizing (to prevent stretching and support HiDPI/Retina)
+            function resizeCanvases() {
+                const dpr = window.devicePixelRatio || 1;
+                
+                [timeCanvas, phaseCanvas].forEach(canvas => {
+                    const rect = canvas.parentElement.getBoundingClientRect();
+                    // Set actual internal canvas resolution to match screen DPI
+                    canvas.width = rect.width * dpr;
+                    canvas.height = rect.height * dpr;
+                    // Set visual display size
+                    canvas.style.width = `${rect.width}px`;
+                    canvas.style.height = `${rect.height}px`;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.scale(dpr, dpr); // Scale all drawing operations
+                });
+            }
+
+            window.addEventListener('resize', resizeCanvases);
+            resizeCanvases(); // Initial resize
+
+            // Main Animation Loop
+            function draw() {
+                // Use logical CSS dimensions for drawing calculations
+                const widthT = timeCanvas.parentElement.clientWidth;
+                const heightT = timeCanvas.parentElement.clientHeight;
+                const widthP = phaseCanvas.parentElement.clientWidth;
+                const heightP = phaseCanvas.parentElement.clientHeight;
+
+                // 1. CALCULATE DYNAMICS (Euler Integration)
+                if (sim.isRunning) {
+                    const du = sim.u - Math.pow(sim.u, 3) - sim.v;
+                    const dv = sim.epsilon * (sim.u - gamma * sim.v + beta);
+
+                    sim.u += du * dt;
+                    sim.v += dv * dt;
+                    sim.time += dt;
+
+                    sim.history.push({ u: sim.u, v: sim.v, time: sim.time });
+                    if (sim.history.length > sim.maxHistory) {
+                        sim.history.shift();
+                    }
+                }
+
+                // --- DRAW TIME SERIES ---
+                tCtx.clearRect(0, 0, widthT, heightT);
+                
+                tCtx.beginPath();
+                tCtx.strokeStyle = '#cbd5e1'; 
+                tCtx.moveTo(0, heightT / 2);
+                tCtx.lineTo(widthT, heightT / 2);
+                tCtx.stroke();
+
+                if (sim.history.length > 0) {
+                    const uPoints = [];
+                    const vPoints = [];
+                    
+                    // Dynamic vertical scale for time series to fit container height
+                    const scaleT = heightT / 4.5;
+
+                    sim.history.forEach((state, index) => {
+                        const x = (index / sim.maxHistory) * widthT;
+                        const yu = heightT / 2 - state.u * scaleT; 
+                        const yv = heightT / 2 - state.v * scaleT;
+                        uPoints.push({ x, y: yu });
+                        vPoints.push({ x, y: yv });
+                    });
+
+                    // u (Activator)
+                    tCtx.beginPath();
+                    tCtx.strokeStyle = '#0f172a';
+                    tCtx.lineWidth = 2;
+                    tCtx.moveTo(uPoints[0].x, uPoints[0].y);
+                    uPoints.forEach(p => tCtx.lineTo(p.x, p.y));
+                    tCtx.stroke();
+
+                    // v (Inhibitor)
+                    tCtx.beginPath();
+                    tCtx.strokeStyle = '#64748b';
+                    tCtx.setLineDash([5, 5]);
+                    tCtx.lineWidth = 2;
+                    tCtx.moveTo(vPoints[0].x, vPoints[0].y);
+                    vPoints.forEach(p => tCtx.lineTo(p.x, p.y));
+                    tCtx.stroke();
+                    tCtx.setLineDash([]); 
+                }
+
+                // Legend
+                tCtx.fillStyle = '#0f172a';
+                tCtx.font = '14px sans-serif';
+                tCtx.fillText('u (Activator)', 10, 20);
+                tCtx.fillStyle = '#64748b';
+                tCtx.fillText('v (Inhibitor)', 10, 40);
+
+
+                // --- DRAW PHASE SPACE ---
+                pCtx.clearRect(0, 0, widthP, heightP);
+
+                // Dynamic scale for phase space: slightly zoomed out (divisor 3.5 instead of 2.8)
+                const scaleP = Math.min(widthP, heightP) / 3.5;
+                
+                // Offset to perfectly frame the trajectory (moves center right and up)
+                const vOffset = 0.3;
+                const uOffset = 0.2;
+                const mapV = (vVal) => widthP / 2 + (vVal - vOffset) * scaleP;
+                const mapU = (uVal) => heightP / 2 - (uVal - uOffset) * scaleP;
+
+                // Axes drawn across the entire width/height
+                pCtx.beginPath();
+                pCtx.strokeStyle = '#cbd5e1';
+                pCtx.moveTo(0, mapU(0)); pCtx.lineTo(widthP, mapU(0)); // v-axis
+                pCtx.moveTo(mapV(0), 0); pCtx.lineTo(mapV(0), heightP); // u-axis
+                pCtx.stroke();
+                
+                pCtx.fillStyle = '#94a3b8';
+                pCtx.font = '14px sans-serif';
+                pCtx.fillText('v', widthP - 15, mapU(0) - 10);
+                pCtx.fillText('u', mapV(0) + 10, 15);
+
+                // u-nullcline
+                pCtx.beginPath();
+                pCtx.strokeStyle = '#64748b';
+                pCtx.setLineDash([4, 4]);
+                pCtx.lineWidth = 1.5;
+                for (let uPlot = -2.5; uPlot <= 2.5; uPlot += 0.05) {
+                    const vPlot = uPlot - Math.pow(uPlot, 3);
+                    const px = mapV(vPlot);
+                    const py = mapU(uPlot);
+                    if (uPlot === -2.5) pCtx.moveTo(px, py);
+                    else pCtx.lineTo(px, py);
+                }
+                pCtx.stroke();
+
+                // v-nullcline
+                pCtx.beginPath();
+                for (let uPlot = -2.5; uPlot <= 2.5; uPlot += 0.1) {
+                    const vPlot = (uPlot + beta) / gamma;
+                    const px = mapV(vPlot);
+                    const py = mapU(uPlot);
+                    if (uPlot === -2.5) pCtx.moveTo(px, py);
+                    else pCtx.lineTo(px, py);
+                }
+                pCtx.stroke();
+                pCtx.setLineDash([]);
+
+                // Fixed point "O"
+                pCtx.fillStyle = '#0f172a';
+                pCtx.beginPath();
+                pCtx.arc(mapV(-0.384), mapU(-0.6), 4, 0, Math.PI * 2);
+                pCtx.fill();
+                pCtx.fillText('O', mapV(-0.384) + 10, mapU(-0.6) + 15);
+
+                // Trajectory
+                if (sim.history.length > 0) {
+                    pCtx.beginPath();
+                    pCtx.strokeStyle = '#ef4444';
+                    pCtx.lineWidth = 2;
+                    pCtx.moveTo(mapV(sim.history[0].v), mapU(sim.history[0].u));
+                    sim.history.forEach(p => {
+                        pCtx.lineTo(mapV(p.v), mapU(p.u));
+                    });
+                    pCtx.stroke();
+
+                    // Current point
+                    const currentP = sim.history[sim.history.length - 1];
+                    pCtx.beginPath();
+                    pCtx.fillStyle = '#ef4444';
+                    pCtx.arc(mapV(currentP.v), mapU(currentP.u), 5, 0, Math.PI * 2);
+                    pCtx.fill();
+                }
+
+                requestAnimationFrame(draw);
+            }
+
+            // Start animation loop
+            draw();
+        });
+    </script>
+</body>
+</html>

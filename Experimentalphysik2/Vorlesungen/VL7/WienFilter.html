@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wien-Filter Visualisierung</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom scrollbar for range inputs */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #e2e8f0;
+            height: 6px;
+            border-radius: 4px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #input-v0::-webkit-slider-thumb { background: #475569; }
+        #input-E::-webkit-slider-thumb { background: #ea580c; }
+        #input-B::-webkit-slider-thumb { background: #3b82f6; }
+        #input-q::-webkit-slider-thumb { background: #6366f1; }
+        #input-m::-webkit-slider-thumb { background: #10b981; }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-100 p-4 md:p-8 font-sans text-slate-800">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                <i data-lucide="target" class="w-8 h-8 text-blue-600"></i>
+                Wien-Filter (Geschwindigkeitsfilter)
+            </h1>
+            <p class="mt-2 text-slate-600">
+                Experimentelle Visualisierung gekreuzter elektrischer und magnetischer Felder zur Selektion von geladenen Teilchen mit einer bestimmten Geschwindigkeit.
+            </p>
+        </header>
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Canvas Area -->
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <div class="flex gap-2">
+                        <button id="play-btn" class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700">
+                            <i data-lucide="play" id="play-icon" class="w-4 h-4"></i>
+                            <span id="play-text">Start</span>
+                        </button>
+                        <button id="reset-btn" class="flex items-center gap-2 px-4 py-2 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-lg font-medium transition-colors">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                            Zurücksetzen
+                        </button>
+                    </div>
+                    
+                    <!-- Status Badge -->
+                    <div id="status-badge" class="font-medium text-slate-500">Bereit</div>
+                </div>
+
+                <div class="p-4 flex justify-center bg-[#f8fafc]">
+                    <canvas id="simCanvas" width="800" height="400" class="w-full max-w-full h-auto bg-white border border-slate-300 rounded-lg shadow-inner" style="aspect-ratio: 2/1;"></canvas>
+                </div>
+                
+                <!-- Realtime Metrics -->
+                <div class="grid grid-cols-3 gap-4 p-4 border-t border-slate-200 bg-slate-50 text-sm">
+                    <div class="bg-white p-3 rounded-lg border border-slate-200">
+                        <span class="block text-slate-500 mb-1">Elektrische Kraft (F<sub>E</sub>)</span>
+                        <span class="font-mono font-semibold text-orange-600">
+                            <span id="metric-fe">50.0</span> <span class="text-xs text-slate-400 font-sans">rel. Einh.</span>
+                        </span>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg border border-slate-200">
+                        <span class="block text-slate-500 mb-1">Magnetische Kraft (F<sub>L</sub>)</span>
+                        <span class="font-mono font-semibold text-blue-600">
+                            <span id="metric-fl">50.0</span> <span class="text-xs text-slate-400 font-sans">rel. Einh.</span>
+                        </span>
+                    </div>
+                    <div id="metric-vpass-container" class="p-3 rounded-lg border bg-white border-slate-200">
+                        <span class="block text-slate-500 mb-1">Passier-Geschw. (v = E/B)</span>
+                        <span id="metric-vpass" class="font-mono font-semibold text-slate-800">
+                            10 <span class="text-xs font-sans">m/s</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls Sidebar -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col gap-6">
+                <h2 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+                    <i data-lucide="settings-2" class="w-5 h-5 text-slate-500"></i>
+                    Parameter
+                </h2>
+
+                <div class="space-y-5">
+                    <!-- Velocity -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-slate-700">Startgeschwindigkeit (v<sub>0</sub>)</label>
+                            <span class="text-sm font-mono text-slate-500"><span id="val-v0">10</span> m/s</span>
+                        </div>
+                        <input id="input-v0" type="range" min="1" max="30" step="0.5" value="10" class="w-full">
+                    </div>
+
+                    <hr class="border-slate-100" />
+
+                    <!-- Electric Field -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-slate-700">Elektrisches Feld (E)</label>
+                            <span class="text-sm font-mono text-orange-600"><span id="val-E">50</span> V/m</span>
+                        </div>
+                        <input id="input-E" type="range" min="-100" max="100" step="1" value="50" class="w-full">
+                    </div>
+
+                    <!-- Magnetic Field -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-slate-700">Magnetfeld (B)</label>
+                            <span class="text-sm font-mono text-blue-600"><span id="val-B">5</span> T</span>
+                        </div>
+                        <input id="input-B" type="range" min="-20" max="20" step="0.5" value="5" class="w-full">
+                    </div>
+
+                    <hr class="border-slate-100" />
+
+                    <!-- Charge -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-slate-700">Ladung (q)</label>
+                            <span class="text-sm font-mono text-slate-500"><span id="val-q">+1</span> e</span>
+                        </div>
+                        <input id="input-q" type="range" min="-5" max="5" step="1" value="1" class="w-full">
+                    </div>
+
+                    <!-- Mass -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-slate-700">Masse (m)</label>
+                            <span class="text-sm font-mono text-slate-500"><span id="val-m">1</span> u</span>
+                        </div>
+                        <input id="input-m" type="range" min="0.5" max="10" step="0.5" value="1" class="w-full">
+                    </div>
+                </div>
+                
+                <!-- Quick Helper -->
+                <div class="mt-auto bg-blue-50 p-4 rounded-xl text-sm text-blue-900 border border-blue-100 min-h-[140px] flex flex-col justify-center">
+                    <p class="font-semibold mb-2 flex items-center gap-1">
+                        <i data-lucide="info" class="w-4 h-4"></i> 
+                        <span id="hint-title">Tipp</span>
+                    </p>
+                    <div id="hint-text" class="leading-relaxed">
+                        Damit das Teilchen geradeaus fliegt, müssen sich die elektrische Kraft (orange) und die Lorentzkraft (blau) exakt aufheben. Verändere die Schieberegler, um zu lernen, wie sie zusammenhängen!
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Explanation Section -->
+        <div class="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">Wie funktioniert der Wien-Filter?</h2>
+            
+            <div class="grid md:grid-cols-2 gap-8 text-slate-700 leading-relaxed">
+                <div>
+                    <p class="mb-4">
+                        Der <strong>Wien-Filter</strong> nutzt gekreuzte (senkrecht aufeinander stehende) elektrische und magnetische Felder, 
+                        um aus einem Strahl von geladenen Teilchen exakt diejenigen herauszufiltern, die eine bestimmte Geschwindigkeit <i>v</i> besitzen.
+                    </p>
+                    <h3 class="text-lg font-semibold text-slate-800 mt-6 mb-2">Die wirkenden Kräfte</h3>
+                    <ul class="list-disc list-inside space-y-2">
+                        <li>
+                            <strong>Elektrische Kraft (<span class="text-orange-600 font-semibold">F<sub>E</sub> = q &middot; E</span>):</strong> Zieht das Teilchen (abhängig vom Vorzeichen der Ladung) zur positiven oder negativen Kondensatorplatte. Sie ist unabhängig von der Geschwindigkeit.
+                        </li>
+                        <li>
+                            <strong>Lorentzkraft (<span class="text-blue-600 font-semibold">F<sub>L</sub> = q &middot; v &middot; B</span>):</strong> Steht senkrecht auf der Bewegungsrichtung und dem Magnetfeld. Sie wird umso stärker, je schneller das Teilchen fliegt.
+                        </li>
+                    </ul>
+                    <div class="mt-6 bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
+                        <h4 class="font-semibold text-slate-800 mb-2">Verwendete Einheiten</h4>
+                        <ul class="space-y-1">
+                            <li>• <strong>Geschwindigkeit (v):</strong> Meter pro Sekunde (m/s)</li>
+                            <li>• <strong>Elektrisches Feld (E):</strong> Volt pro Meter (V/m)</li>
+                            <li>• <strong>Magnetfeld (B):</strong> Tesla (T)</li>
+                            <li>• <strong>Ladung (q):</strong> Elementarladungen (e)</li>
+                            <li>• <strong>Masse (m):</strong> atomare Masseneinheit (u)</li>
+                            <li>• <strong>Kraft (F):</strong> Newton (N)</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                    <h3 class="text-lg font-semibold text-slate-800 mb-3">Die Durchlassbedingung</h3>
+                    <p class="mb-4">
+                        Ein Teilchen kann die Blende am Ende nur passieren, wenn es nicht abgelenkt wird. Das ist genau dann der Fall, wenn sich beide Kräfte vom Betrag her aufheben und genau entgegengesetzt wirken:
+                    </p>
+                    <div class="bg-white p-5 rounded-lg shadow-sm text-center text-lg text-slate-800 mb-4 font-mono">
+                        <div>F<sub>E</sub> = F<sub>L</sub></div>
+                        <div class="mt-2 text-slate-500">q &middot; E = q &middot; v &middot; B</div>
+                        <div class="text-emerald-600 font-bold mt-4 flex items-center justify-center gap-3 text-2xl">
+                            <span>v =</span>
+                            <div class="flex flex-col items-center leading-none">
+                                <span class="border-b-[3px] border-emerald-600 px-2 py-1">E</span>
+                                <span class="px-2 py-1">B</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm">
+                        <strong>Beachte:</strong> Die Durchlassbedingung hängt <em>nicht</em> von der Masse oder der Ladung ab! Jedes Teilchen (egal ob schwer oder leicht), das diese spezielle Geschwindigkeit besitzt, wird den Filter ungestört durchqueren. (Probier es in der Simulation aus, indem du Masse und Ladung änderst).
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Constants
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 400;
+        const FILTER_START_X = 200;
+        const FILTER_END_X = 600;
+        const PLATE_TOP_Y = 120;
+        const PLATE_BOTTOM_Y = 280;
+        const SLIT_TOP = 190;
+        const SLIT_BOTTOM = 210;
+        const FORCE_SCALE = 0.015; 
+
+        // DOM Elements
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const playBtn = document.getElementById('play-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const playIcon = document.getElementById('play-icon');
+        const playText = document.getElementById('play-text');
+        const statusBadge = document.getElementById('status-badge');
+        
+        const metricFe = document.getElementById('metric-fe');
+        const metricFl = document.getElementById('metric-fl');
+        const metricVpass = document.getElementById('metric-vpass');
+        const metricVpassContainer = document.getElementById('metric-vpass-container');
+
+        const hintTitle = document.getElementById('hint-title');
+        const hintText = document.getElementById('hint-text');
+
+        const inputs = {
+            v0: document.getElementById('input-v0'),
+            E: document.getElementById('input-E'),
+            B: document.getElementById('input-B'),
+            q: document.getElementById('input-q'),
+            m: document.getElementById('input-m'),
+        };
+
+        const values = {
+            v0: document.getElementById('val-v0'),
+            E: document.getElementById('val-E'),
+            B: document.getElementById('val-B'),
+            q: document.getElementById('val-q'),
+            m: document.getElementById('val-m'),
+        };
+
+        // Hints Library
+        const hintsInfo = {
+            default: 'Damit das Teilchen geradeaus fliegt, müssen sich die elektrische Kraft (orange) und die Lorentzkraft (blau) exakt aufheben. Verändere die Schieberegler, um zu lernen, wie sie zusammenhängen!',
+            v0: 'Eine Änderung der Startgeschwindigkeit beeinflusst die Lorentzkraft (<i>F<sub>L</sub> = q &middot; v &middot; B</i>). Passt <i>v</i> nicht exakt zur Durchlassbedingung <i>v = E / B</i>, überwiegt eine der beiden Kräfte und das Teilchen wird abgelenkt.',
+            E: 'Das E-Feld zieht die Ladung unabhängig von ihrer Geschwindigkeit an (<i>F<sub>E</sub> = q &middot; E</i>). Ein stärkeres <i>E</i>-Feld erfordert eine höhere Geschwindigkeit oder ein stärkeres <i>B</i>-Feld zur Kompensation.',
+            B: 'Das Magnetfeld lenkt bewegte Ladungen ab (<i>F<sub>L</sub> = q &middot; v &middot; B</i>). Je stärker das <i>B</i>-Feld, desto stärker die Lorentzkraft. Ohne <i>B</i>-Feld gibt es keinen Filtereffekt.',
+            q: 'Die Ladung beeinflusst die Richtung und Stärke beider Kräfte proportional. Da <i>q</i> in beiden Formeln vorkommt, kürzt es sich bei <i>v = E / B</i> heraus. Neutrale Teilchen (<i>q=0</i>) fliegen immer geradeaus!',
+            m: 'Die Masse bestimmt die Trägheit. Ein schwereres Teilchen lässt sich schwerer von seiner Bahn abbringen (flachere Kurve). Für die Durchlassbedingung spielt die Masse jedoch keine Rolle!'
+        };
+
+        // State
+        let state = {
+            E: parseFloat(inputs.E.value),
+            B: parseFloat(inputs.B.value),
+            v0: parseFloat(inputs.v0.value),
+            q: parseFloat(inputs.q.value),
+            m: parseFloat(inputs.m.value),
+            isRunning: false,
+            simStatus: 'ready', // 'ready', 'running', 'crashed', 'success'
+            lastChanged: 'default'
+        };
+
+        let physics = {
+            x: 50,
+            y: 200,
+            vx: parseFloat(inputs.v0.value),
+            vy: 0,
+            path: [],
+            lastTime: performance.now()
+        };
+
+        let animationFrameId;
+
+        // --- Event Listeners ---
+        playBtn.addEventListener('click', togglePlay);
+        resetBtn.addEventListener('click', resetSimulation);
+
+        Object.keys(inputs).forEach(key => {
+            inputs[key].addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                state[key] = val;
+                state.lastChanged = key;
+                
+                // Update label
+                values[key].innerText = key === 'q' && val > 0 ? `+${val}` : val;
+                
+                // Update hints
+                hintTitle.innerText = 'Lern-Hinweis';
+                hintText.innerHTML = hintsInfo[key];
+
+                // If modifying velocity while ready, update physics immediately
+                if (key === 'v0' && state.simStatus === 'ready') {
+                    physics.vx = val;
+                }
+
+                updateUI();
+                if (!state.isRunning) render();
+            });
+        });
+
+        // --- Functions ---
+        function resetSimulation() {
+            physics = {
+                x: 50,
+                y: 200,
+                vx: state.v0,
+                vy: 0,
+                path: [],
+                lastTime: performance.now()
+            };
+            state.simStatus = 'ready';
+            state.isRunning = false;
+            updateUI();
+            render();
+        }
+
+        function togglePlay() {
+            if (state.simStatus === 'crashed' || state.simStatus === 'success') {
+                resetSimulation();
+                state.isRunning = true;
+                state.simStatus = 'running';
+            } else {
+                state.isRunning = !state.isRunning;
+                if (state.simStatus === 'ready') state.simStatus = 'running';
+            }
+            updateUI();
+            
+            if (state.isRunning) {
+                physics.lastTime = performance.now();
+                animationFrameId = requestAnimationFrame(animate);
+            } else {
+                cancelAnimationFrame(animationFrameId);
+            }
+        }
+
+        function updateUI() {
+            // Button Styles
+            if (state.isRunning) {
+                playBtn.className = "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors bg-amber-100 text-amber-700 hover:bg-amber-200";
+                playText.innerText = "Pause";
+                playIcon.setAttribute('data-lucide', 'pause');
+            } else {
+                playBtn.className = "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700";
+                playText.innerText = state.simStatus === 'ready' ? "Start" : "Weiter / Neustart";
+                playIcon.setAttribute('data-lucide', 'play');
+            }
+            lucide.createIcons();
+
+            // Status Badge
+            statusBadge.className = "font-medium px-3 py-1 rounded-full";
+            if (state.simStatus === 'crashed') {
+                statusBadge.innerHTML = '<span class="text-red-600 bg-red-50 px-3 py-1 rounded-full">Kollision!</span>';
+            } else if (state.simStatus === 'success') {
+                statusBadge.innerHTML = '<span class="text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">Filter passiert!</span>';
+            } else if (state.simStatus === 'running') {
+                statusBadge.innerHTML = '<span class="text-blue-600">Simulation läuft...</span>';
+            } else {
+                statusBadge.innerHTML = '<span class="text-slate-500">Bereit</span>';
+            }
+
+            // Metrics
+            const currentVx = state.simStatus === 'ready' ? state.v0 : physics.vx;
+            metricFe.innerText = Math.abs(state.q * state.E).toFixed(1);
+            metricFl.innerText = Math.abs(state.q * currentVx * state.B).toFixed(1);
+            
+            let idealV = state.B !== 0 ? Math.abs(state.E / state.B).toFixed(2) : '∞';
+            metricVpass.innerHTML = `${idealV} <span class="text-xs font-sans">m/s</span>`;
+
+            const isCorrectV = state.simStatus === 'ready' && state.B !== 0 && Math.abs(state.v0 - Math.abs(state.E / state.B)) < 0.1;
+            if (isCorrectV) {
+                metricVpassContainer.className = "p-3 rounded-lg border bg-emerald-50 border-emerald-200";
+                metricVpass.className = "font-mono font-semibold text-emerald-700";
+            } else {
+                metricVpassContainer.className = "p-3 rounded-lg border bg-white border-slate-200";
+                metricVpass.className = "font-mono font-semibold text-slate-800";
+            }
+        }
+
+        function drawArrow(ctx, fromX, fromY, toX, toY) {
+            const headlen = 8;
+            const dx = toX - fromX;
+            const dy = toY - fromY;
+            const angle = Math.atan2(dy, dx);
+            
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+
+        function updatePhysics(timestamp) {
+            if (state.simStatus !== 'running') {
+                physics.lastTime = timestamp;
+                return;
+            }
+
+            const dt = 0.1;
+            physics.lastTime = timestamp;
+
+            let { x, y, vx, vy, path } = physics;
+            path.push({ x, y });
+
+            let ax = 0;
+            let ay = 0;
+
+            if (x >= FILTER_START_X && x <= FILTER_END_X) {
+                const F_Ey = -state.q * state.E; 
+                const F_Lx = -state.q * vy * state.B;
+                const F_Ly = state.q * vx * state.B;
+
+                ax = (F_Lx / state.m) * FORCE_SCALE;
+                ay = ((F_Ey + F_Ly) / state.m) * FORCE_SCALE;
+            }
+
+            vx += ax * dt;
+            vy += ay * dt;
+            x += vx * dt;
+            y += vy * dt;
+
+            let newStatus = 'running';
+            
+            if (x >= FILTER_START_X && x <= FILTER_END_X) {
+                if (y <= PLATE_TOP_Y || y >= PLATE_BOTTOM_Y) newStatus = 'crashed';
+            }
+
+            if (x >= FILTER_END_X && physics.x < FILTER_END_X) {
+                if (y < SLIT_TOP || y > SLIT_BOTTOM) {
+                    newStatus = 'crashed';
+                    x = FILTER_END_X;
+                }
+            }
+
+            if (x > CANVAS_WIDTH) newStatus = 'success';
+            if (y < 0 || y > CANVAS_HEIGHT) newStatus = 'crashed';
+
+            physics = { x, y, vx, vy, path, lastTime: timestamp };
+
+            if (newStatus !== 'running') {
+                state.simStatus = newStatus;
+                state.isRunning = false;
+                updateUI();
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // Hintergrund
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // E-Feld zeichnen
+            if (state.E !== 0) {
+                ctx.strokeStyle = 'rgba(234, 88, 12, 0.3)';
+                ctx.fillStyle = 'rgba(234, 88, 12, 0.3)';
+                ctx.lineWidth = 1.5;
+                for (let ix = FILTER_START_X + 20; ix < FILTER_END_X; ix += 40) {
+                    const startY = state.E > 0 ? PLATE_BOTTOM_Y - 5 : PLATE_TOP_Y + 5;
+                    const endY = state.E > 0 ? PLATE_TOP_Y + 5 : PLATE_BOTTOM_Y - 5;
+                    drawArrow(ctx, ix, startY, ix, endY);
+                }
+            }
+
+            // B-Feld zeichnen
+            if (state.B !== 0) {
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+                ctx.lineWidth = 1.5;
+                for (let ix = FILTER_START_X + 20; ix < FILTER_END_X; ix += 40) {
+                    for (let iy = PLATE_TOP_Y + 20; iy < PLATE_BOTTOM_Y; iy += 30) {
+                        ctx.beginPath();
+                        ctx.arc(ix, iy, 4, 0, 2 * Math.PI);
+                        ctx.stroke();
+                        if (state.B > 0) {
+                            ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+                            ctx.fill();
+                        } else {
+                            ctx.beginPath();
+                            ctx.moveTo(ix - 2, iy - 2);
+                            ctx.lineTo(ix + 2, iy + 2);
+                            ctx.moveTo(ix + 2, iy - 2);
+                            ctx.lineTo(ix - 2, iy + 2);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            // Kondensatorplatten
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(FILTER_START_X, PLATE_TOP_Y - 10, FILTER_END_X - FILTER_START_X, 10);
+            ctx.fillRect(FILTER_START_X, PLATE_BOTTOM_Y, FILTER_END_X - FILTER_START_X, 10);
+            
+            // Polung
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '14px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            if (state.E !== 0) {
+                const topSign = state.E > 0 ? '-' : '+';
+                const bottomSign = state.E > 0 ? '+' : '-';
+                for (let ix = FILTER_START_X + 20; ix < FILTER_END_X; ix += 60) {
+                    ctx.fillText(topSign, ix, PLATE_TOP_Y - 5);
+                    ctx.fillText(bottomSign, ix, PLATE_BOTTOM_Y + 5);
+                }
+            }
+
+            // Blende
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(FILTER_END_X, 0, 10, SLIT_TOP);
+            ctx.fillRect(FILTER_END_X, SLIT_BOTTOM, 10, CANVAS_HEIGHT - SLIT_BOTTOM);
+
+            // Trajektorie
+            if (physics.path.length > 0) {
+                ctx.beginPath();
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.moveTo(physics.path[0].x, physics.path[0].y);
+                for (let i = 1; i < physics.path.length; i++) {
+                    ctx.lineTo(physics.path[i].x, physics.path[i].y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Teilchen & Vektoren
+            const { x, y, vx, vy } = physics;
+            
+            if (x >= FILTER_START_X && x <= FILTER_END_X && state.simStatus !== 'crashed') {
+                const scale = 0.5;
+                const F_Ey = -state.q * state.E; 
+                if (Math.abs(F_Ey) > 0.1) {
+                    ctx.strokeStyle = '#ea580c';
+                    ctx.fillStyle = '#ea580c';
+                    ctx.lineWidth = 2;
+                    drawArrow(ctx, x, y, x, y + F_Ey * scale);
+                }
+
+                const F_Lx = -state.q * vy * state.B;
+                const F_Ly = state.q * vx * state.B;
+                if (Math.abs(F_Lx) > 0.1 || Math.abs(F_Ly) > 0.1) {
+                    ctx.strokeStyle = '#2563eb';
+                    ctx.fillStyle = '#2563eb';
+                    ctx.lineWidth = 2;
+                    drawArrow(ctx, x, y, x + F_Lx * scale, y + F_Ly * scale);
+                }
+            }
+
+            // Teilchen
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = state.q > 0 ? '#ef4444' : (state.q < 0 ? '#3b82f6' : '#64748b');
+            ctx.fill();
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(state.q > 0 ? '+' : (state.q < 0 ? '-' : '0'), x, y);
+
+            // Update Metrics during flight
+            if (state.isRunning) {
+                metricFe.innerText = Math.abs(state.q * state.E).toFixed(1);
+                metricFl.innerText = Math.abs(state.q * vx * state.B).toFixed(1);
+            }
+        }
+
+        function animate(timestamp) {
+            if (state.isRunning) {
+                updatePhysics(timestamp);
+                render();
+                animationFrameId = requestAnimationFrame(animate);
+            }
+        }
+
+        // Init
+        updateUI();
+        render();
+
+    </script>
+</body>
+</html>

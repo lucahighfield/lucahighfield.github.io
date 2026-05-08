@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1D Bifurkations-Explorer</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- KaTeX für mathematische Formeln -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+</head>
+<body class="bg-slate-50 min-h-screen p-6 flex flex-col items-center font-sans text-slate-800">
+
+    <div class="max-w-5xl w-full bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+        
+        <!-- Header & Steuerelemente -->
+        <div class="bg-slate-900 text-white p-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div class="flex-1">
+                    <h1 class="text-2xl font-bold mb-2">1D Bifurkations-Explorer</h1>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        Beobachten Sie, wie sich das qualitative Verhalten des dynamischen Systems <span class="katex-inline" data-tex="\dot{x} = f(x; r)"></span> ändert, wenn der Parameter <span class="katex-inline" data-tex="r"></span> variiert.
+                    </p>
+                </div>
+                
+                <!-- KaTeX Systemgleichung Box -->
+                <div class="bg-slate-800 border border-slate-700 px-6 py-2 rounded-xl shadow-inner text-center min-w-[220px] flex flex-col justify-center">
+                    <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider block mb-1">Systemgleichung</span>
+                    <div id="katex-equation" class="text-blue-400 text-lg"></div>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-6 items-center">
+                <!-- Typ-Auswahl -->
+                <div id="type-selector" class="flex bg-slate-800 p-1 rounded-lg w-full md:w-auto overflow-x-auto">
+                    <!-- Buttons werden per JS generiert -->
+                </div>
+
+                <!-- Parameter Slider -->
+                <div class="flex-1 w-full flex items-center gap-4 bg-slate-800 px-4 py-2 rounded-lg">
+                    <span class="font-semibold text-slate-300 w-16 text-right">r = <span id="r-display">-1.50</span></span>
+                    <input
+                        type="range"
+                        id="r-slider"
+                        min="-2"
+                        max="2"
+                        step="0.01"
+                        value="-1.5"
+                        class="flex-1 accent-blue-500 h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
+
+                <!-- Animations-Steuerung -->
+                <div class="flex gap-2">
+                    <button
+                        id="play-pause-btn"
+                        class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    >
+                        <span id="play-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        </span>
+                        <span id="pause-icon" class="hidden">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                        </span>
+                        <span id="play-pause-text">Animieren</span>
+                    </button>
+                    <button
+                        id="reset-btn"
+                        class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                        title="Zurücksetzen"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legende -->
+        <div class="bg-slate-100 px-6 py-3 border-b border-slate-200 flex justify-center gap-8 text-sm">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span> Stabiles Gleichgewicht
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full border-2 border-red-600 bg-white inline-block"></span> Instabiles Gleichgewicht
+            </div>
+        </div>
+
+        <!-- Visualisierungs-Gitter -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 p-8">
+            
+            <!-- Plot 1: Phasenporträt -->
+            <div class="flex flex-col items-center">
+                <h2 class="text-lg font-semibold mb-4 text-slate-700 flex items-center gap-2">
+                    Phasenporträt: <span class="katex-inline" data-tex="\dot{x}"></span> vs <span class="katex-inline" data-tex="x"></span>
+                </h2>
+                <div class="relative border border-slate-200 rounded-lg shadow-inner bg-white w-full max-w-[400px]">
+                    <svg id="phase-svg" viewBox="0 0 400 300" class="w-full h-auto block"></svg>
+                </div>
+                <p class="mt-4 text-sm text-slate-500 text-center px-4 leading-relaxed">
+                    Die Kurve repräsentiert <span class="katex-inline" data-tex="\dot{x} = f(x)"></span>.<br/>
+                    Pfeile zeigen den Fluss von <span class="katex-inline" data-tex="x"></span> über die Zeit. <span class="katex-inline" data-tex="x"></span> bewegt sich nach rechts, wenn <span class="katex-inline" data-tex="\dot{x} > 0"></span>, und nach links, wenn <span class="katex-inline" data-tex="\dot{x} < 0"></span>.
+                </p>
+            </div>
+
+            <!-- Plot 2: Bifurkationsdiagramm -->
+            <div class="flex flex-col items-center">
+                <h2 class="text-lg font-semibold mb-4 text-slate-700 flex items-center gap-2">
+                    Bifurkationsdiagramm: <span class="katex-inline" data-tex="x^*"></span> vs <span class="katex-inline" data-tex="r"></span>
+                </h2>
+                <div class="relative border border-slate-200 rounded-lg shadow-inner bg-white w-full max-w-[400px]">
+                    <svg id="bifurcation-svg" viewBox="0 0 400 300" class="w-full h-auto block"></svg>
+                </div>
+                <p class="mt-4 text-sm text-slate-500 text-center px-4 leading-relaxed">
+                    Zeigt die Position der Fixpunkte <span class="katex-inline" data-tex="x^*"></span> in Abhängigkeit vom Parameter <span class="katex-inline" data-tex="r"></span>.<br/>
+                    Die gestrichelte vertikale Linie markiert den aktuellen Wert von <span class="katex-inline" data-tex="r"></span>.
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Anwendungs-Logik -->
+    <script>
+        // Graph Setup Konstanten
+        const GRAPH_WIDTH = 400;
+        const GRAPH_HEIGHT = 300;
+        const MARGIN = { top: 20, right: 20, bottom: 40, left: 40 };
+        const INNER_W = GRAPH_WIDTH - MARGIN.left - MARGIN.right;
+        const INNER_H = GRAPH_HEIGHT - MARGIN.top - MARGIN.bottom;
+
+        // Skalierungsfunktionen
+        const mapX1 = (xVal) => MARGIN.left + ((xVal + 2) / 4) * INNER_W; 
+        const mapY1 = (yVal) => MARGIN.top + INNER_H - ((yVal + 3) / 6) * INNER_H; 
+        const mapX2 = (rVal) => MARGIN.left + ((rVal + 2) / 4) * INNER_W; 
+        const mapY2 = (xVal) => MARGIN.top + INNER_H - ((xVal + 2) / 4) * INNER_H;
+
+        // Mathematische Definitionen für die Bifurkationen
+        const BIFURCATION_MATH = {
+            'saddle-node': {
+                f: (xVal, rVal) => rVal - xVal * xVal,
+                name: 'Sattelknoten',
+                equationTex: "\\dot{x} = r - x^2",
+                getEq: (rVal) => {
+                    if (rVal < -0.001) return [];
+                    if (Math.abs(rVal) <= 0.001) return [{ xVal: 0, type: 'half' }];
+                    return [
+                        { xVal: Math.sqrt(rVal), type: 'stable' },
+                        { xVal: -Math.sqrt(rVal), type: 'unstable' },
+                    ];
+                },
+                bifurcationBranches: [
+                    { stable: true, pts: Array.from({ length: 100 }, (_, i) => ({ rVal: (i * 2) / 99, xVal: Math.sqrt((i * 2) / 99) })) },
+                    { stable: false, pts: Array.from({ length: 100 }, (_, i) => ({ rVal: (i * 2) / 99, xVal: -Math.sqrt((i * 2) / 99) })) },
+                ],
+            },
+            'transcritical': {
+                f: (xVal, rVal) => rVal * xVal - xVal * xVal,
+                name: 'Transkritisch',
+                equationTex: "\\dot{x} = rx - x^2",
+                getEq: (rVal) => {
+                    if (Math.abs(rVal) <= 0.001) return [{ xVal: 0, type: 'half' }];
+                    if (rVal < 0) return [{ xVal: 0, type: 'stable' }, { xVal: rVal, type: 'unstable' }];
+                    return [{ xVal: rVal, type: 'stable' }, { xVal: 0, type: 'unstable' }];
+                },
+                bifurcationBranches: [
+                    { stable: true, pts: Array.from({ length: 50 }, (_, i) => ({ rVal: -2 + (i * 2) / 49, xVal: 0 })) },
+                    { stable: false, pts: Array.from({ length: 50 }, (_, i) => ({ rVal: (i * 2) / 49, xVal: 0 })) },
+                    { stable: false, pts: Array.from({ length: 50 }, (_, i) => ({ rVal: -2 + (i * 2) / 49, xVal: -2 + (i * 2) / 49 })) },
+                    { stable: true, pts: Array.from({ length: 50 }, (_, i) => ({ rVal: (i * 2) / 49, xVal: (i * 2) / 49 })) },
+                ],
+            },
+            'pitchfork': {
+                f: (xVal, rVal) => rVal * xVal - Math.pow(xVal, 3),
+                name: 'Superkritische Pitchfork',
+                equationTex: "\\dot{x} = rx - x^3",
+                getEq: (rVal) => {
+                    if (Math.abs(rVal) <= 0.001) return [{ xVal: 0, type: 'stable' }];
+                    if (rVal < 0) return [{ xVal: 0, type: 'stable' }];
+                    return [
+                        { xVal: 0, type: 'unstable' },
+                        { xVal: Math.sqrt(rVal), type: 'stable' },
+                        { xVal: -Math.sqrt(rVal), type: 'stable' },
+                    ];
+                },
+                bifurcationBranches: [
+                    { stable: true, pts: Array.from({ length: 50 }, (_, i) => ({ rVal: -2 + (i * 2) / 49, xVal: 0 })) },
+                    { stable: false, pts: Array.from({ length: 50 }, (_, i) => ({ rVal: (i * 2) / 49, xVal: 0 })) },
+                    { stable: true, pts: Array.from({ length: 50 }, (_, i) => ({ rVal: (i * 2) / 49, xVal: Math.sqrt((i * 2) / 49) })) },
+                    { stable: true, pts: Array.from({ length: 50 }, (_, i) => ({ rVal: (i * 2) / 49, xVal: -Math.sqrt((i * 2) / 49) })) },
+                ],
+            },
+        };
+
+        // State Management
+        let currentState = {
+            bifurcationType: 'saddle-node',
+            r: -1.5,
+            isAnimating: false,
+            direction: 1
+        };
+
+        const R_MIN = -2;
+        const R_MAX = 2;
+        const SPEED = 0.015;
+        let animationFrameId = null;
+
+        // DOM Elemente
+        const slider = document.getElementById('r-slider');
+        const rDisplay = document.getElementById('r-display');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const playPauseText = document.getElementById('play-pause-text');
+        const resetBtn = document.getElementById('reset-btn');
+        const typeSelector = document.getElementById('type-selector');
+        const phaseSvg = document.getElementById('phase-svg');
+        const bifurcationSvg = document.getElementById('bifurcation-svg');
+
+        // Initialisierung
+        function init() {
+            initKatex();
+            buildTypeButtons();
+            setupEventListeners();
+            updateAll();
+        }
+
+        function initKatex() {
+            if (!window.katex) return;
+            renderKatexEquation();
+            
+            // Inline Formeln rendern
+            document.querySelectorAll('.katex-inline').forEach(el => {
+                const tex = el.getAttribute('data-tex');
+                katex.render(tex, el, { throwOnError: false });
+            });
+        }
+
+        function renderKatexEquation() {
+            if (!window.katex) return;
+            const eqDiv = document.getElementById('katex-equation');
+            const tex = BIFURCATION_MATH[currentState.bifurcationType].equationTex;
+            katex.render(tex, eqDiv, { displayMode: true, throwOnError: false });
+        }
+
+        function buildTypeButtons() {
+            typeSelector.innerHTML = '';
+            Object.keys(BIFURCATION_MATH).forEach(type => {
+                const btn = document.createElement('button');
+                btn.className = `px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    currentState.bifurcationType === type ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                }`;
+                btn.textContent = BIFURCATION_MATH[type].name;
+                btn.onclick = () => {
+                    currentState.bifurcationType = type;
+                    currentState.isAnimating = false;
+                    setR(-1.5);
+                    buildTypeButtons();
+                    renderKatexEquation();
+                    updatePlayPauseUI();
+                };
+                typeSelector.appendChild(btn);
+            });
+        }
+
+        function setupEventListeners() {
+            slider.addEventListener('input', (e) => {
+                setR(parseFloat(e.target.value));
+                currentState.isAnimating = false;
+                updatePlayPauseUI();
+            });
+
+            playPauseBtn.addEventListener('click', () => {
+                currentState.isAnimating = !currentState.isAnimating;
+                updatePlayPauseUI();
+                if (currentState.isAnimating) {
+                    animationLoop();
+                } else {
+                    cancelAnimationFrame(animationFrameId);
+                }
+            });
+
+            resetBtn.addEventListener('click', () => {
+                setR(-1.5);
+                currentState.isAnimating = false;
+                currentState.direction = 1;
+                updatePlayPauseUI();
+                cancelAnimationFrame(animationFrameId);
+            });
+        }
+
+        function setR(newR) {
+            currentState.r = newR;
+            slider.value = newR;
+            rDisplay.textContent = newR.toFixed(2);
+            renderPlots();
+        }
+
+        function updatePlayPauseUI() {
+            if (currentState.isAnimating) {
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+                playPauseText.textContent = 'Pause';
+            } else {
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+                playPauseText.textContent = 'Animieren';
+            }
+        }
+
+        function animationLoop() {
+            if (!currentState.isAnimating) return;
+            
+            let nextR = currentState.r + SPEED * currentState.direction;
+            if (nextR >= R_MAX) {
+                nextR = R_MAX;
+                currentState.direction = -1;
+            } else if (nextR <= R_MIN) {
+                nextR = R_MIN;
+                currentState.direction = 1;
+            }
+            
+            setR(Number(nextR.toFixed(3)));
+            animationFrameId = requestAnimationFrame(animationLoop);
+        }
+
+        function updateAll() {
+            slider.value = currentState.r;
+            rDisplay.textContent = currentState.r.toFixed(2);
+            renderPlots();
+        }
+
+        // --- SVG Rendering Funktionen ---
+
+        function drawAxis(mapX, mapY, domainX, domainY, labelX, labelY) {
+            return `
+                <g class="text-gray-500 text-sm font-serif italic" stroke="currentColor">
+                    <!-- Raster -->
+                    <line x1="${mapX(domainX[0])}" y1="${mapY(0)}" x2="${mapX(domainX[1])}" y2="${mapY(0)}" stroke="#cbd5e1" stroke-dasharray="4 4" />
+                    <line x1="${mapX(0)}" y1="${mapY(domainY[0])}" x2="${mapX(0)}" y2="${mapY(domainY[1])}" stroke="#cbd5e1" stroke-dasharray="4 4" />
+                    <!-- Achsen-Labels -->
+                    <text x="${mapX(domainX[1]) + 8}" y="${mapY(0) + 4}" fill="currentColor" stroke="none">${labelX}</text>
+                    <text x="${mapX(0) - 12}" y="${mapY(domainY[1]) - 8}" fill="currentColor" text-anchor="middle" stroke="none">${labelY}</text>
+                </g>
+            `;
+        }
+
+        function renderEquilibriumDot(cx, cy, type) {
+            if (type === 'stable') {
+                return `<circle cx="${cx}" cy="${cy}" r="5" fill="#2563eb" stroke="#2563eb" stroke-width="2" />`;
+            } else if (type === 'unstable') {
+                return `<circle cx="${cx}" cy="${cy}" r="5" fill="white" stroke="#dc2626" stroke-width="2" />`;
+            } else {
+                return `
+                    <g>
+                        <circle cx="${cx}" cy="${cy}" r="5" fill="white" stroke="#9333ea" stroke-width="2" />
+                        <path d="M ${cx} ${cy - 5} A 5 5 0 0 0 ${cx} ${cy + 5} Z" fill="#9333ea" />
+                    </g>
+                `;
+            }
+        }
+
+        function renderPlots() {
+            const math = BIFURCATION_MATH[currentState.bifurcationType];
+            const r = currentState.r;
+
+            // --- Phase Portrait ---
+            let phaseSvgContent = drawAxis(mapX1, mapY1, [-2, 2], [-3, 3], 'x', 'x\u0307');
+            
+            // f(x) curve
+            let pts = [];
+            for (let xVal = -2; xVal <= 2.01; xVal += 0.05) {
+                pts.push(`${mapX1(xVal)},${mapY1(math.f(xVal, r))}`);
+            }
+            phaseSvgContent += `<path d="M ${pts.join(' L ')}" fill="none" stroke="#334155" stroke-width="2.5" />`;
+
+            // Phase Arrows
+            const equilibria = math.getEq(r).sort((a, b) => a.xVal - b.xVal);
+            const intervals = [-2.5, ...equilibria.map(eq => eq.xVal), 2.5];
+            
+            for (let i = 0; i < intervals.length - 1; i++) {
+                const start = Math.max(-2, intervals[i]);
+                const end = Math.min(2, intervals[i + 1]);
+                if (start >= 2 || end <= -2) continue;
+
+                const mid = (start + end) / 2;
+                const val = math.f(mid, r);
+
+                if (Math.abs(val) > 0.05) {
+                    const direction = val > 0 ? 1 : -1;
+                    const transform = `translate(${mapX1(mid)}, ${mapY1(0)})`;
+                    if (direction > 0) {
+                        phaseSvgContent += `<polygon points="-6,-5 4,0 -6,5" fill="#334155" transform="${transform}" />`;
+                    } else {
+                        phaseSvgContent += `<polygon points="6,-5 -4,0 6,5" fill="#334155" transform="${transform}" />`;
+                    }
+                }
+            }
+
+            // Equilibria Dots (Phase Portrait)
+            equilibria.forEach(eq => {
+                phaseSvgContent += renderEquilibriumDot(mapX1(eq.xVal), mapY1(0), eq.type);
+            });
+
+            phaseSvg.innerHTML = phaseSvgContent;
+
+            // --- Bifurcation Diagram ---
+            let bifSvgContent = drawAxis(mapX2, mapY2, [-2, 2], [-2, 2], 'r', 'x*');
+            
+            // Bifurcation Branches
+            math.bifurcationBranches.forEach(branch => {
+                const d = `M ${branch.pts.map(p => `${mapX2(p.rVal)},${mapY2(p.xVal)}`).join(' L ')}`;
+                const stroke = branch.stable ? '#2563eb' : '#dc2626';
+                const dash = branch.stable ? 'none' : '5,5';
+                bifSvgContent += `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-dasharray="${dash}" />`;
+            });
+
+            // Vertical Tracker
+            bifSvgContent += `<line x1="${mapX2(r)}" y1="${MARGIN.top}" x2="${mapX2(r)}" y2="${GRAPH_HEIGHT - MARGIN.bottom}" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3,3" />`;
+
+            // Current Equilibria Dots (Bifurcation Diagram)
+            equilibria.forEach(eq => {
+                bifSvgContent += renderEquilibriumDot(mapX2(r), mapY2(eq.xVal), eq.type);
+            });
+
+            bifurcationSvg.innerHTML = bifSvgContent;
+        }
+
+        // Starten
+        init();
+
+    </script>
+</body>
+</html>

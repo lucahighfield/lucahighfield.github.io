@@ -32,6 +32,10 @@
                         Unknown
                     </div>
                     
+                    <div id="class-desc" class="text-xs text-slate-600 mt-3 text-center min-h-[2.5rem] flex items-center justify-center leading-relaxed">
+                        <!-- Description injected via JS -->
+                    </div>
+                    
                     <div class="mt-4 grid grid-cols-2 gap-4 text-sm bg-slate-50 p-3 rounded-lg border border-slate-100">
                         <div>
                             <span class="text-slate-500 block">Trace (τ)</span>
@@ -175,35 +179,51 @@
             const eps = 0.01;
             let type = "Unknown";
             let color = "#94a3b8";
+            let description = "";
 
             if (det < -eps) {
                 type = "Saddle Point";
                 color = "#ef4444"; 
+                description = "Δ < 0: Real eigenvalues with opposite signs (λ₁ > 0, λ₂ < 0).";
             } else if (Math.abs(det) <= eps) {
                 type = "Non-isolated fixed points";
                 color = "#94a3b8"; 
+                description = "Δ = 0: At least one eigenvalue is exactly zero.";
             } else {
                 if (Math.abs(tau) <= eps) {
                     type = "Center";
                     color = "#3b82f6";
+                    description = "τ = 0, Δ > 0: Purely imaginary eigenvalues (Re(λ) = 0).";
                 } else if (disc < -eps) {
                     type = tau > 0 ? "Unstable Focus (Spiral)" : "Stable Focus (Spiral)";
                     color = tau > 0 ? "#f97316" : "#16a34a"; 
+                    description = tau > 0 
+                        ? "τ > 0, Δ > 0, disc < 0: Complex conjugate eigenvalues with positive real parts (Re(λ) > 0)."
+                        : "τ < 0, Δ > 0, disc < 0: Complex conjugate eigenvalues with negative real parts (Re(λ) < 0).";
                 } else if (disc > eps) {
                     type = tau > 0 ? "Unstable Node" : "Stable Node";
                     color = tau > 0 ? "#c084fc" : "#4ade80"; 
+                    description = tau > 0
+                        ? "τ > 0, Δ > 0, disc > 0: Real, distinct, positive eigenvalues (λ₁, λ₂ > 0)."
+                        : "τ < 0, Δ > 0, disc > 0: Real, distinct, negative eigenvalues (λ₁, λ₂ < 0).";
                 } else {
                     if (Math.abs(b) < eps && Math.abs(c) < eps) {
                         type = tau > 0 ? "Unstable Star" : "Stable Star";
                         color = tau > 0 ? "#1f2937" : "#4b5563"; 
+                        description = tau > 0
+                            ? "disc = 0: Repeated positive real roots with independent eigenvectors."
+                            : "disc = 0: Repeated negative real roots with independent eigenvectors.";
                     } else {
                         type = tau > 0 ? "Degenerate Unstable Node" : "Degenerate Stable Node";
                         color = "#ec4899"; 
+                        description = tau > 0
+                            ? "disc = 0: Repeated positive real roots with only one independent eigenvector."
+                            : "disc = 0: Repeated negative real roots with only one independent eigenvector.";
                     }
                 }
             }
 
-            return { tau, det, disc, lambda1, lambda2, type, color, isComplex };
+            return { tau, det, disc, lambda1, lambda2, type, color, description, isComplex };
         };
 
         const getEigenvectors = (a, b, c, d, lambda1, lambda2, isComplex) => {
@@ -288,6 +308,9 @@
             typeEl.style.color = props.color;
             typeEl.style.borderColor = props.color;
             typeEl.style.backgroundColor = props.color + '15';
+
+            const descEl = document.getElementById('class-desc');
+            descEl.innerText = props.description;
 
             document.getElementById('trace-val').innerText = props.tau.toFixed(2);
             document.getElementById('det-val').innerText = props.det.toFixed(2);

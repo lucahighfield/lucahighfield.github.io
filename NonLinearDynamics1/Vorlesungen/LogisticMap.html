@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Logistic Map</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for canvas and font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+        }
+        canvas {
+            border: 1px solid #e0e0e0;
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center min-h-screen">
+
+    <div class="max-w-4xl w-full">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2">Logistic Map Explorer</h1>
+        <p class="text-gray-600 mb-6">
+            Explore the dynamics of the logistic map $x_{n+1} = r x_n (1 - x_n)$ by adjusting the parameter $r$.
+        </p>
+
+        <!-- Control Panel -->
+        <div class="bg-white p-4 rounded-xl shadow-lg mb-6 flex flex-col md:flex-row items-center justify-between">
+            <div class="w-full md:w-3/5">
+                <label for="rSlider" class="block text-sm font-medium text-gray-700">Growth Rate (r): <span id="rValue" class="font-bold text-indigo-600">1.500</span></label>
+                <!-- R_MIN changed to 0.5 and default value set to 1.5 -->
+                <input type="range" id="rSlider" min="0.5" max="4.0" step="0.001" value="1.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+            </div>
+            <!-- Labels updated to reflect the new range below r=3 -->
+            <div class="mt-4 md:mt-0 md:ml-6 flex space-x-4">
+                <p class="text-sm font-medium text-gray-700">
+                    $r \le 1$: Extinction
+                </p>
+                <p class="text-sm font-medium text-gray-700">
+                    $1 < r < 3$: Stable Point
+                </p>
+                <p class="text-sm font-medium text-gray-700">
+                    $r$ > 3.57: Chaos
+                </p>
+            </div>
+        </div>
+
+        <!-- Visualization Area -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Bifurcation Diagram Canvas -->
+            <div>
+                <h2 class="text-xl font-semibold mb-2 text-center text-gray-800">Bifurcation Diagram (x vs r)</h2>
+                <canvas id="bifurcationCanvas" width="400" height="400" class="w-full h-auto"></canvas>
+            </div>
+
+            <!-- Time Series Canvas -->
+            <div>
+                <h2 class="text-xl font-semibold mb-2 text-center text-gray-800">Time Series ($x_n$ vs n)</h2>
+                <canvas id="timeseriesCanvas" width="400" height="400" class="w-full h-auto"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const R_MIN = 0.5; // Changed from 2.5 to 0.5
+        const R_MAX = 4.0;
+        const R_STEPS = 500; // Number of r values to calculate for the bifurcation diagram
+        const TRANSIENTS = 200; // Iterations to discard before plotting steady state
+        const PLOT_POINTS = 100; // Number of points to plot for steady state
+        const TIME_SERIES_LENGTH = 100; // Number of iterations for the time series plot
+        const X_START = 0.5; // Initial condition x0
+
+        // --- DOM Elements & Contexts ---
+        const rSlider = document.getElementById('rSlider');
+        const rValueDisplay = document.getElementById('rValue');
+
+        const bifurcationCanvas = document.getElementById('bifurcationCanvas');
+        const bifurcationCtx = bifurcationCanvas.getContext('2d');
+
+        const timeseriesCanvas = document.getElementById('timeseriesCanvas');
+        const timeseriesCtx = timeseriesCanvas.getContext('2d');
+
+        // Set initial R based on the updated slider value
+        let currentR = parseFloat(rSlider.value);
+        let bifurcationData = [];
+
+        // Function to resize the canvases based on the container size
+        function resizeCanvas() {
+            const parentWidth = bifurcationCanvas.parentElement.clientWidth;
+            // Maintain a square aspect ratio
+            const size = Math.min(parentWidth, 600); 
+            bifurcationCanvas.width = size;
+            bifurcationCanvas.height = size;
+            timeseriesCanvas.width = size;
+            timeseriesCanvas.height = size;
+
+            // Redraw everything on resize
+            drawBifurcationDiagram();
+            drawTimeSeries();
+        }
+
+        // --- Logistic Map Calculation ---
+
+        /**
+         * Calculates the next iteration of the logistic map.
+         * @param {number} x_n The current value of x.
+         * @param {number} r The growth rate parameter.
+         * @returns {number} The next value of x.
+         */
+        function logisticMap(x_n, r) {
+            return r * x_n * (1 - x_n);
+        }
+
+        /**
+         * Pre-calculates the bifurcation diagram points.
+         */
+        function precalculateBifurcation() {
+            console.log("Precalculating Bifurcation Data...");
+            bifurcationData = [];
+            
+            // Loop through R_STEPS discrete values of r
+            for (let i = 0; i <= R_STEPS; i++) {
+                const r = R_MIN + (R_MAX - R_MIN) * (i / R_STEPS);
+                let x = X_START;
+
+                // 1. Calculate and discard transients
+                for (let j = 0; j < TRANSIENTS; j++) {
+                    x = logisticMap(x, r);
+                }
+
+                // 2. Collect steady-state points
+                const points = [];
+                for (let j = 0; j < PLOT_POINTS; j++) {
+                    x = logisticMap(x, r);
+                    points.push(x);
+                }
+
+                bifurcationData.push({ r, points });
+            }
+            console.log("Precalculation complete.");
+            drawBifurcationDiagram();
+        }
+
+        // --- Drawing Functions ---
+
+        /**
+         * Draws the pre-calculated bifurcation diagram.
+         */
+        function drawBifurcationDiagram() {
+            const W = bifurcationCanvas.width;
+            const H = bifurcationCanvas.height;
+            const ctx = bifurcationCtx;
+            const margin = 30;
+            const plotW = W - 2 * margin;
+            const plotH = H - 2 * margin;
+
+            ctx.clearRect(0, 0, W, H);
+
+            // Draw Axes (x and r)
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // X-axis (r)
+            ctx.moveTo(margin, H - margin);
+            ctx.lineTo(W - margin, H - margin);
+            // Y-axis (x)
+            ctx.moveTo(margin, H - margin);
+            ctx.lineTo(margin, margin);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Inter';
+            // r axis labels (using R_MIN)
+            ctx.fillText(R_MIN.toFixed(1), margin, H - margin + 15);
+            ctx.fillText(R_MAX.toFixed(1), W - margin - 20, H - margin + 15);
+            // x axis labels
+            ctx.fillText('0', margin - 15, H - margin + 5);
+            ctx.fillText('1', margin - 15, margin + 5);
+            ctx.fillText('r', W - margin + 5, H - margin + 5);
+            ctx.fillText('x', margin - 20, margin - 5);
+
+
+            // Draw Data Points
+            ctx.fillStyle = '#3b82f6'; // Blue for points
+            const pointSize = 1; // 1px dot for performance and detail
+
+            bifurcationData.forEach(data => {
+                const xR = margin + plotW * ((data.r - R_MIN) / (R_MAX - R_MIN));
+                
+                data.points.forEach(x_val => {
+                    // Map x_val (0 to 1) to canvas Y (H-margin to margin)
+                    const xY = H - margin - plotH * x_val;
+                    
+                    // Draw a single pixel point
+                    ctx.fillRect(xR, xY, pointSize, pointSize);
+                });
+            });
+
+            // Draw current r marker
+            const currentRNormalized = (currentR - R_MIN) / (R_MAX - R_MIN);
+            const xLine = margin + plotW * currentRNormalized;
+            
+            ctx.strokeStyle = '#ef4444'; // Red line
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(xLine, margin);
+            ctx.lineTo(xLine, H - margin);
+            ctx.stroke();
+
+            // Draw r value on top
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 14px Inter';
+            ctx.fillText(`r = ${currentR.toFixed(3)}`, xLine - 25, margin - 10);
+        }
+
+        /**
+         * Draws the time series plot for the current r value.
+         */
+        function drawTimeSeries() {
+            const W = timeseriesCanvas.width;
+            const H = timeseriesCanvas.height;
+            const ctx = timeseriesCtx;
+            const margin = 30;
+            const plotW = W - 2 * margin;
+            const plotH = H - 2 * margin;
+
+            ctx.clearRect(0, 0, W, H);
+
+            // Calculate Time Series
+            const series = [];
+            let x = X_START;
+            series.push(x);
+            for (let i = 0; i < TIME_SERIES_LENGTH; i++) {
+                x = logisticMap(x, currentR);
+                series.push(x);
+            }
+
+            // Draw Axes (n and x)
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // N-axis (n)
+            ctx.moveTo(margin, H - margin);
+            ctx.lineTo(W - margin, H - margin);
+            // X-axis (x)
+            ctx.moveTo(margin, H - margin);
+            ctx.lineTo(margin, margin);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Inter';
+            ctx.fillText('0', margin - 15, H - margin + 5);
+            ctx.fillText(TIME_SERIES_LENGTH.toString(), W - margin - 20, H - margin + 15);
+            ctx.fillText('1', margin - 15, margin + 5);
+            ctx.fillText('n', W - margin + 5, H - margin + 5);
+            ctx.fillText('x', margin - 20, margin - 5);
+
+
+            // Draw Line Plot
+            ctx.strokeStyle = '#10b981'; // Green for time series line
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            series.forEach((x_val, n) => {
+                // Map n (0 to TIME_SERIES_LENGTH) to canvas X
+                const xN = margin + plotW * (n / TIME_SERIES_LENGTH);
+                // Map x_val (0 to 1) to canvas Y (H-margin to margin)
+                const xY = H - margin - plotH * x_val;
+
+                if (n === 0) {
+                    ctx.moveTo(xN, xY);
+                } else {
+                    ctx.lineTo(xN, xY);
+                }
+            });
+            ctx.stroke();
+
+            // Draw Points
+            ctx.fillStyle = '#059669'; // Darker green for points
+            series.forEach((x_val, n) => {
+                const xN = margin + plotW * (n / TIME_SERIES_LENGTH);
+                const xY = H - margin - plotH * x_val;
+                ctx.beginPath();
+                ctx.arc(xN, xY, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Highlight the value after transients are discarded
+            // Note: Transient line is now useful for r > 1 where it settles, not just r > 3.0
+            if (currentR > 1.0) {
+                ctx.fillStyle = '#f97316'; // Orange for steady state marker
+                ctx.font = 'bold 12px Inter';
+                ctx.fillText('Transient', margin + 10, H - margin - 10);
+                
+                // Draw a vertical line showing where the transients end
+                const xTransientEnd = margin + plotW * (TRANSIENTS / TIME_SERIES_LENGTH);
+                ctx.strokeStyle = '#f97316';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(xTransientEnd, H - margin);
+                ctx.lineTo(xTransientEnd, margin);
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset line dash
+            }
+        }
+
+        // --- Event Listeners and Initial Setup ---
+
+        function handleRChange(event) {
+            currentR = parseFloat(event.target.value);
+            rValueDisplay.textContent = currentR.toFixed(3);
+            drawBifurcationDiagram();
+            drawTimeSeries();
+        }
+
+        rSlider.addEventListener('input', handleRChange);
+        window.addEventListener('resize', resizeCanvas);
+
+        // Initial calculations and draw
+        window.onload = function() {
+            // Must resize before drawing to set correct canvas dimensions
+            resizeCanvas(); 
+            // Update initial R value display
+            rValueDisplay.textContent = parseFloat(rSlider.value).toFixed(3);
+            precalculateBifurcation();
+            drawTimeSeries(); 
+        };
+
+    </script>
+</body>
+</html>

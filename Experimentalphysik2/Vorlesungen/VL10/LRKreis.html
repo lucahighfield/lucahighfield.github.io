@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selbstinduktion LR-Kreis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Smooth transitions for UI elements */
+        .transition-colors { transition-property: color, background-color, border-color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+    </style>
+</head>
+<body class="bg-slate-100 p-4 md:p-8 font-sans text-slate-800 min-h-screen">
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <h1 class="text-3xl md:text-4xl font-bold mb-6">Selbstinduktion im LR-Kreis</h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Left Column: Circuit & Controls -->
+            <div class="lg:col-span-5 space-y-6">
+                <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                    <h2 class="text-xl font-bold mb-4">Schaltkreis</h2>
+                    
+                    <!-- Interactive Circuit SVG -->
+                    <div class="w-full bg-slate-50 rounded-lg mb-6 border border-slate-200 flex justify-center p-4">
+                        <svg viewBox="0 0 400 300" class="w-full h-auto max-w-[350px] stroke-slate-800 text-slate-800">
+                            <!-- Battery Wiring -->
+                            <polyline fill="none" stroke-width="4" points="50,250 50,50 100,50" />
+                            
+                            <!-- Battery Symbol -->
+                            <g transform="translate(0, 150)">
+                                <line x1="30" y1="-10" x2="70" y2="-10" stroke-width="3" />
+                                <line x1="20" y1="10" x2="80" y2="10" stroke-width="6" />
+                                <text x="15" y="0" class="text-sm fill-current stroke-none font-bold">U₀</text>
+                            </g>
+
+                            <!-- Common Right Side Wire -->
+                            <polyline fill="none" stroke-width="4" points="200,50 350,50 350,110" />
+
+                            <!-- Resistor -->
+                            <g transform="translate(350, 110)">
+                                <polyline fill="none" stroke-width="4" stroke-linejoin="miter" points="0,0 -20,15 20,45 -20,75 20,105 0,120" />
+                                <text x="30" y="65" class="text-sm fill-current stroke-none font-bold text-blue-600">R</text>
+                            </g>
+                            <polyline fill="none" stroke-width="4" points="350,230 350,250 290,250" />
+
+                            <!-- Inductor (Coil) -->
+                            <g transform="translate(0,0)">
+                                <path d="M 290 250 C 280 210, 260 210, 260 250 C 250 210, 230 210, 230 250 C 220 210, 200 210, 200 250 C 190 210, 170 210, 170 250" fill="none" stroke-width="5" />
+                                <text x="220" y="280" class="text-sm fill-current stroke-none font-bold text-purple-600">L</text>
+                            </g>
+                            <polyline fill="none" stroke-width="4" points="170,250 50,250" />
+
+                            <!-- Glow/Magnetic Field effect -->
+                            <defs>
+                                <linearGradient id="magField" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="transparent" />
+                                    <stop offset="50%" stop-color="#c084fc" stop-opacity="0.5" />
+                                    <stop offset="100%" stop-color="transparent" />
+                                </linearGradient>
+                            </defs>
+                            <rect id="coilGlow" x="170" y="215" width="120" height="30" fill="url(#magField)" class="mix-blend-multiply" opacity="0" />
+
+                            <!-- Switch Component -->
+                            <g>
+                                <line id="switchLine" x1="200" y1="50" x2="135" y2="15" stroke-width="6" stroke-linecap="round" class="transition-all text-orange-500" stroke="currentColor" />
+                                <circle cx="100" cy="50" r="6" fill="currentColor" />
+                                <circle cx="200" cy="50" r="6" fill="currentColor" />
+                            </g>
+
+                            <!-- Current flow indicators -->
+                            <g id="currentArrow" class="text-blue-500" stroke="currentColor" stroke-width="3" fill="none" style="display: none;">
+                                <path d="M 340 80 L 350 90 L 360 80" />
+                                <text x="365" y="85" class="text-sm font-bold stroke-none fill-current">I</text>
+                            </g>
+                        </svg>
+                    </div>
+
+                    <!-- Main Interaction Button -->
+                    <button 
+                        id="btnSwitch"
+                        class="w-full py-4 rounded-xl font-bold text-lg text-white shadow-md transition-colors bg-emerald-600 hover:bg-emerald-700"
+                    >
+                        Schalter schließen
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                    <h2 class="text-xl font-bold mb-4">Parameter</h2>
+                    
+                    <!-- U0 Slider -->
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-slate-700">Quellspannung (<span class="text-emerald-600 font-semibold">U₀</span>)</label>
+                            <span id="lblU0" class="text-sm font-bold text-slate-900">10.0 V</span>
+                        </div>
+                        <input type="range" id="slU0" min="1" max="24" step="1" value="10" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600">
+                    </div>
+
+                    <!-- R Slider -->
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-slate-700">Widerstand (<span class="text-blue-600 font-semibold">R</span>)</label>
+                            <span id="lblR" class="text-sm font-bold text-slate-900">5.0 Ω</span>
+                        </div>
+                        <input type="range" id="slR" min="1" max="50" step="1" value="5" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    </div>
+
+                    <!-- L Slider -->
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-slate-700">Induktivität (<span class="text-purple-600 font-semibold">L</span>)</label>
+                            <span id="lblL" class="text-sm font-bold text-slate-900">10.0 H</span>
+                        </div>
+                        <input type="range" id="slL" min="1" max="50" step="1" value="10" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Graphs & Math -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                    <h2 class="text-xl font-bold mb-4">Live-Graphen</h2>
+                    <div class="space-y-4">
+                        <!-- Graph I -->
+                        <div>
+                            <h3 class="text-sm font-semibold mb-1">Stromstärke <span class="text-blue-600">I(t)</span></h3>
+                            <div class="relative w-full overflow-hidden bg-slate-50 rounded-lg border border-slate-200 h-32" id="graphContainerI">
+                                <!-- Rendered via JS -->
+                            </div>
+                        </div>
+                        <!-- Graph U_ind -->
+                        <div>
+                            <h3 class="text-sm font-semibold mb-1">Induktionsspannung <span class="text-red-500">U_ind(t)</span></h3>
+                            <div class="relative w-full overflow-hidden bg-slate-50 rounded-lg border border-slate-200 h-32" id="graphContainerU">
+                                <!-- Rendered via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div class="bg-blue-50 rounded-xl shadow border border-blue-100 p-6">
+                        <h3 class="text-lg font-bold mb-3 text-blue-800">Systemzustand</h3>
+                        <ul class="space-y-2 text-lg">
+                            <li class="flex justify-between">
+                                <span>Maximalstrom (I<sub>max</sub>):</span>
+                                <span id="txtImax" class="font-mono font-bold">2.00 A</span>
+                            </li>
+                            <li class="flex justify-between">
+                                <span>Zeitkonstante (τ = L/R):</span>
+                                <span id="txtTau" class="font-mono font-bold">2.00 s</span>
+                            </li>
+                            <li class="flex justify-between border-t border-blue-200 pt-2 mt-2">
+                                <span>Aktueller Strom (I):</span>
+                                <span id="txtI" class="font-mono font-bold text-blue-600">0.00 A</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-purple-50 rounded-xl shadow border border-purple-100 p-6">
+                        <h3 class="text-lg font-bold mb-3 text-purple-800">Magn. Energie</h3>
+                        <div class="flex flex-col h-full justify-center pb-4">
+                            <div class="text-sm mb-2 font-mono">W<sub>m</sub> = ½ · L · I²</div>
+                            <div id="txtWm" class="text-4xl font-black text-purple-600">0.0 J</div>
+                            
+                            <!-- Energy Progress Bar -->
+                            <div class="w-full h-3 bg-purple-200 rounded-full mt-4 overflow-hidden">
+                                <div id="barWm" class="h-full bg-purple-500 transition-all" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let U0 = 10;
+        let R = 5;
+        let L = 10;
+        let switchClosed = false;
+
+        let time = 0;
+        let I = 0;
+        let U_ind = 0;
+        let history = [];
+        let lastTime = performance.now();
+
+        // --- DOM Elements ---
+        const slU0 = document.getElementById('slU0');
+        const slR = document.getElementById('slR');
+        const slL = document.getElementById('slL');
+        const lblU0 = document.getElementById('lblU0');
+        const lblR = document.getElementById('lblR');
+        const lblL = document.getElementById('lblL');
+        
+        const btnSwitch = document.getElementById('btnSwitch');
+        const switchLine = document.getElementById('switchLine');
+        const currentArrow = document.getElementById('currentArrow');
+        const coilGlow = document.getElementById('coilGlow');
+
+        const txtImax = document.getElementById('txtImax');
+        const txtTau = document.getElementById('txtTau');
+        const txtI = document.getElementById('txtI');
+        const txtWm = document.getElementById('txtWm');
+        const barWm = document.getElementById('barWm');
+
+        const graphContainerI = document.getElementById('graphContainerI');
+        const graphContainerU = document.getElementById('graphContainerU');
+
+        // --- Event Listeners ---
+        slU0.addEventListener('input', (e) => { U0 = parseFloat(e.target.value); lblU0.innerText = U0.toFixed(1) + ' V'; });
+        slR.addEventListener('input', (e) => { R = parseFloat(e.target.value); lblR.innerText = R.toFixed(1) + ' Ω'; });
+        slL.addEventListener('input', (e) => { L = parseFloat(e.target.value); lblL.innerText = L.toFixed(1) + ' H'; });
+
+        btnSwitch.addEventListener('click', () => {
+            switchClosed = !switchClosed;
+            
+            if (switchClosed) {
+                btnSwitch.innerText = 'Schalter öffnen';
+                btnSwitch.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+                btnSwitch.classList.add('bg-red-600', 'hover:bg-red-700');
+                switchLine.setAttribute('x2', '100');
+                switchLine.setAttribute('y2', '50');
+            } else {
+                btnSwitch.innerText = 'Schalter schließen';
+                btnSwitch.classList.remove('bg-red-600', 'hover:bg-red-700');
+                btnSwitch.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+                switchLine.setAttribute('x2', '135');
+                switchLine.setAttribute('y2', '15');
+            }
+        });
+
+        // --- SVG Graph Generator ---
+        function generateGraphHTML(dataKey, color, fixedMin, fixedMax, label, unit, limitValue = null, limitLabel = null) {
+            if (history.length < 2) return '';
+
+            const width = 400;
+            const height = 120;
+            const padding = 10;
+            const timeWindow = 8;
+            
+            const latestTime = history[history.length - 1].time;
+            const startTime = latestTime - timeWindow;
+
+            let minY = fixedMin;
+            let maxY = fixedMax;
+            
+            history.forEach(p => {
+                if (p[dataKey] < minY) minY = p[dataKey] * 1.2;
+                if (p[dataKey] > maxY) maxY = p[dataKey] * 1.2;
+            });
+
+            if (limitValue !== null) {
+                maxY = Math.max(maxY, limitValue * 1.15); 
+            }
+
+            if (maxY === minY) maxY = minY + 1;
+            const rangeY = maxY - minY;
+
+            const points = history.map(p => {
+                const x = ((p.time - startTime) / timeWindow) * width;
+                const y = height - ((p[dataKey] - minY) / rangeY) * height;
+                return `${x},${y}`;
+            }).join(' ');
+
+            const yZero = height - ((0 - minY) / rangeY) * height;
+            const yLimit = limitValue !== null ? height - ((limitValue - minY) / rangeY) * height : null;
+
+            let svgContent = `<svg viewBox="0 0 ${width} ${height + 2 * padding}" class="w-full h-full" preserveAspectRatio="none"><g transform="translate(0, ${padding})">`;
+
+            if (minY < 0 && maxY > 0) {
+                svgContent += `<line x1="0" y1="${yZero}" x2="${width}" y2="${yZero}" stroke="currentColor" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4 4" class="text-slate-500" />`;
+            }
+
+            if (yLimit !== null) {
+                svgContent += `<line x1="0" y1="${yLimit}" x2="${width}" y2="${yLimit}" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 4" />`;
+                svgContent += `<text x="${width - 5}" y="${yLimit - 5}" text-anchor="end" class="text-xs fill-slate-500 font-mono font-semibold">${limitLabel}: ${limitValue.toFixed(1)} ${unit}</text>`;
+            }
+
+            svgContent += `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />`;
+            svgContent += `</g></svg>`;
+            
+            let overlay = `<div class="absolute top-2 left-2 text-sm font-semibold flex items-center bg-white/80 px-2 py-1 rounded shadow-sm backdrop-blur"><div class="w-3 h-3 rounded-full mr-2" style="background-color: ${color}"></div>${label}: ${history[history.length - 1][dataKey].toFixed(2)} ${unit}</div>`;
+
+            return svgContent + overlay;
+        }
+
+        // --- Main Loop ---
+        function loop(now) {
+            const dt = Math.min((now - lastTime) / 1000, 0.1); // max 100ms step
+            lastTime = now;
+            time += dt;
+
+            // Physics
+            const tau = L / R;
+            const I_max = U0 / R;
+            const I_inf = switchClosed ? I_max : 0;
+            
+            const nextI = I_inf + (I - I_inf) * Math.exp(-dt / tau);
+            const dIdt = (I_inf - I) / tau; 
+            const nextU_ind = -L * dIdt; 
+
+            I = nextI;
+            U_ind = nextU_ind;
+            const Wm = 0.5 * L * I * I;
+
+            // History for graphs (approx 30fps sampling is enough for visuals)
+            const lastPoint = history[history.length - 1];
+            if (!lastPoint || (time - lastPoint.time >= 0.03)) {
+                history.push({ time, I, U_ind });
+                const windowSize = 8;
+                history = history.filter(p => p.time > time - windowSize);
+                
+                // Update Graphs
+                graphContainerI.innerHTML = generateGraphHTML('I', '#3b82f6', 0, I_max, 'I', 'A', I_max, 'I_max = U₀/R');
+                graphContainerU.innerHTML = generateGraphHTML('U_ind', '#ef4444', -20, 20, 'U_ind', 'V');
+            }
+
+            // Update UI Texts
+            txtImax.innerText = I_max.toFixed(2) + ' A';
+            txtTau.innerText = tau.toFixed(2) + ' s';
+            txtI.innerText = I.toFixed(2) + ' A';
+            txtWm.innerText = Wm.toFixed(1) + ' J';
+
+            // Update Circuit Visuals
+            currentArrow.style.display = I > 0.1 ? 'block' : 'none';
+            coilGlow.setAttribute('opacity', Math.min(I / (I_max || 1), 1) * 0.8);
+            
+            // Energy Bar
+            const maxEnergy = 0.5 * L * I_max * I_max;
+            const percent = maxEnergy > 0 ? Math.min((Wm / maxEnergy) * 100, 100) : 0;
+            barWm.style.width = percent + '%';
+
+            requestAnimationFrame(loop);
+        }
+
+        // Start simulation
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>

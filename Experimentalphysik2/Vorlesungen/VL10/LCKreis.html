@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LC-Schwingkreis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .transition-colors { transition-property: color, background-color, border-color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+    </style>
+</head>
+<body class="bg-slate-100 p-4 md:p-8 font-sans text-slate-800 min-h-screen">
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Idealer LC-Schwingkreis</h1>
+            <div class="space-x-2">
+                <button id="btnReset" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg font-bold text-slate-700 transition-colors">Zurücksetzen</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Left Column: Circuit & Controls -->
+            <div class="lg:col-span-5 space-y-6">
+                <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                    <h2 class="text-xl font-bold mb-4">Schaltkreis</h2>
+                    
+                    <!-- Interactive Circuit SVG -->
+                    <div class="w-full bg-slate-50 rounded-lg mb-6 border border-slate-200 flex justify-center p-4">
+                        <svg viewBox="0 0 400 300" class="w-full h-auto max-w-[350px] stroke-slate-800 text-slate-800">
+                            <!-- Wires -->
+                            <polyline fill="none" stroke-width="4" points="100,50 300,50" />
+                            <polyline fill="none" stroke-width="4" points="100,250 300,250" />
+                            
+                            <!-- Capacitor (Left) -->
+                            <line x1="100" y1="50" x2="100" y2="130" stroke-width="4" />
+                            <line x1="50" y1="130" x2="150" y2="130" stroke-width="6" stroke-linecap="round" />
+                            <line x1="50" y1="170" x2="150" y2="170" stroke-width="6" stroke-linecap="round" />
+                            <line x1="100" y1="170" x2="100" y2="250" stroke-width="4" />
+                            <text x="50" y="155" class="text-lg fill-current stroke-none font-bold text-emerald-600">C</text>
+
+                            <!-- Electric Field effect -->
+                            <rect id="eField" x="60" y="130" width="80" height="40" fill="#10b981" opacity="0" />
+                            <text id="chargeTop" x="100" y="120" text-anchor="middle" class="text-xl font-bold fill-emerald-600 stroke-none" opacity="0">+</text>
+                            <text id="chargeBot" x="100" y="195" text-anchor="middle" class="text-xl font-bold fill-emerald-600 stroke-none" opacity="0">-</text>
+
+                            <!-- Inductor (Right) -->
+                            <line x1="300" y1="50" x2="300" y2="80" stroke-width="4" />
+                            <g transform="translate(0, -10)">
+                                <path d="M 300 90 C 260 100, 260 120, 300 130 C 260 140, 260 160, 300 170 C 260 180, 260 200, 300 210 C 260 220, 260 240, 300 250" fill="none" stroke-width="5" />
+                            </g>
+                            <line x1="300" y1="240" x2="300" y2="250" stroke-width="4" />
+                            <text x="330" y="170" class="text-lg fill-current stroke-none font-bold text-purple-600">L</text>
+
+                            <!-- Magnetic Field effect -->
+                            <defs>
+                                <linearGradient id="magField" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stop-color="transparent" />
+                                    <stop offset="50%" stop-color="#c084fc" stop-opacity="0.6" />
+                                    <stop offset="100%" stop-color="transparent" />
+                                </linearGradient>
+                            </defs>
+                            <rect id="coilGlow" x="250" y="80" width="60" height="170" fill="url(#magField)" class="mix-blend-multiply" opacity="0" />
+
+                            <!-- Current flow indicators -->
+                            <g id="currentArrowTop" class="text-blue-500" stroke="currentColor" stroke-width="3" fill="none" style="display: none;">
+                                <path d="M 190 40 L 200 50 L 190 60" />
+                                <text x="195" y="35" text-anchor="middle" class="text-sm font-bold stroke-none fill-current">I</text>
+                            </g>
+                            <g id="currentArrowBot" class="text-blue-500" stroke="currentColor" stroke-width="3" fill="none" style="display: none;">
+                                <path d="M 210 240 L 200 250 L 210 260" />
+                                <text x="205" y="275" text-anchor="middle" class="text-sm font-bold stroke-none fill-current">I</text>
+                            </g>
+                        </svg>
+                    </div>
+
+                    <!-- Main Interaction Button -->
+                    <button 
+                        id="btnPlayPause"
+                        class="w-full py-4 rounded-xl font-bold text-lg text-white shadow-md transition-colors bg-blue-600 hover:bg-blue-700"
+                    >
+                        Schwingung starten
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                    <h2 class="text-xl font-bold mb-4">Parameter</h2>
+                    
+                    <!-- U0 Slider -->
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-slate-700">Startspannung am Kondensator (<span class="text-emerald-600 font-semibold">U₀</span>)</label>
+                            <span id="lblU0" class="text-sm font-bold text-slate-900">10.0 V</span>
+                        </div>
+                        <input type="range" id="slU0" min="1" max="24" step="1" value="10" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600">
+                    </div>
+
+                    <!-- C Slider -->
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-slate-700">Kapazität (<span class="text-emerald-600 font-semibold">C</span>)</label>
+                            <span id="lblC" class="text-sm font-bold text-slate-900">10.0 mF</span>
+                        </div>
+                        <input type="range" id="slC" min="1" max="50" step="1" value="10" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600">
+                    </div>
+
+                    <!-- L Slider -->
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-slate-700">Induktivität (<span class="text-purple-600 font-semibold">L</span>)</label>
+                            <span id="lblL" class="text-sm font-bold text-slate-900">10.0 H</span>
+                        </div>
+                        <input type="range" id="slL" min="1" max="50" step="1" value="10" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Graphs & Math -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <div class="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                    <h2 class="text-xl font-bold mb-4">Live-Graphen</h2>
+                    <div class="space-y-4">
+                        <!-- Graph U_C -->
+                        <div>
+                            <h3 class="text-sm font-semibold mb-1">Spannung am Kondensator <span class="text-emerald-600">U(t)</span></h3>
+                            <div class="relative w-full overflow-hidden bg-slate-50 rounded-lg border border-slate-200 h-32" id="graphContainerU"></div>
+                        </div>
+                        <!-- Graph I -->
+                        <div>
+                            <h3 class="text-sm font-semibold mb-1">Stromstärke <span class="text-blue-600">I(t)</span></h3>
+                            <div class="relative w-full overflow-hidden bg-slate-50 rounded-lg border border-slate-200 h-32" id="graphContainerI"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <!-- System State -->
+                    <div class="bg-slate-50 rounded-xl shadow border border-slate-200 p-6">
+                        <h3 class="text-lg font-bold mb-3 text-slate-800">Systemzustand</h3>
+                        <ul class="space-y-2 text-lg">
+                            <li class="flex justify-between">
+                                <span>Periodendauer (T):</span>
+                                <span id="txtT" class="font-mono font-bold">0.00 s</span>
+                            </li>
+                            <li class="flex justify-between">
+                                <span>Frequenz (f):</span>
+                                <span id="txtF" class="font-mono font-bold">0.00 Hz</span>
+                            </li>
+                            <li class="flex justify-between border-t border-slate-200 pt-2 mt-2">
+                                <span>Maximalstrom (I<sub>max</sub>):</span>
+                                <span id="txtImax" class="font-mono font-bold text-blue-600">0.00 A</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Energy -->
+                    <div class="bg-white rounded-xl shadow border border-slate-200 p-6">
+                        <h3 class="text-lg font-bold mb-3 text-slate-800">Energie (konstant)</h3>
+                        <div class="flex flex-col h-full justify-center pb-4">
+                            <div class="text-sm font-mono mb-1">W<sub>ges</sub> = W<sub>elektrisch</sub> + W<sub>magnetisch</sub></div>
+                            <div id="txtWtot" class="text-2xl font-black text-slate-800 mb-4">0.00 J</div>
+                            
+                            <!-- Energy Bars -->
+                            <div class="w-full h-8 bg-slate-200 rounded-lg overflow-hidden flex relative">
+                                <div id="barWe" class="h-full bg-emerald-500 flex items-center justify-center text-xs font-bold text-white transition-all" style="width: 100%">W_el</div>
+                                <div id="barWm" class="h-full bg-purple-500 flex items-center justify-center text-xs font-bold text-white transition-all" style="width: 0%">W_mag</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let U0 = 10;   // Start Voltage (V)
+        let C_mF = 10; // Capacitance (milliFarad)
+        let L = 10;    // Inductance (H)
+        
+        let isRunning = false;
+        let time = 0;
+        let history = [];
+        let lastTime = performance.now();
+
+        // --- DOM Elements ---
+        const slU0 = document.getElementById('slU0');
+        const slC = document.getElementById('slC');
+        const slL = document.getElementById('slL');
+        const lblU0 = document.getElementById('lblU0');
+        const lblC = document.getElementById('lblC');
+        const lblL = document.getElementById('lblL');
+        
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        const btnReset = document.getElementById('btnReset');
+        
+        const eField = document.getElementById('eField');
+        const chargeTop = document.getElementById('chargeTop');
+        const chargeBot = document.getElementById('chargeBot');
+        const coilGlow = document.getElementById('coilGlow');
+        const currentArrowTop = document.getElementById('currentArrowTop');
+        const currentArrowBot = document.getElementById('currentArrowBot');
+
+        const txtT = document.getElementById('txtT');
+        const txtF = document.getElementById('txtF');
+        const txtImax = document.getElementById('txtImax');
+        const txtWtot = document.getElementById('txtWtot');
+        
+        const barWe = document.getElementById('barWe');
+        const barWm = document.getElementById('barWm');
+
+        const graphContainerI = document.getElementById('graphContainerI');
+        const graphContainerU = document.getElementById('graphContainerU');
+
+        // --- Event Listeners ---
+        slU0.addEventListener('input', (e) => { U0 = parseFloat(e.target.value); lblU0.innerText = U0.toFixed(1) + ' V'; if(!isRunning) updateStatic(); });
+        slC.addEventListener('input', (e) => { C_mF = parseFloat(e.target.value); lblC.innerText = C_mF.toFixed(1) + ' mF'; if(!isRunning) updateStatic(); });
+        slL.addEventListener('input', (e) => { L = parseFloat(e.target.value); lblL.innerText = L.toFixed(1) + ' H'; if(!isRunning) updateStatic(); });
+
+        btnPlayPause.addEventListener('click', () => {
+            isRunning = !isRunning;
+            if (isRunning) {
+                btnPlayPause.innerText = 'Pausieren';
+                btnPlayPause.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                btnPlayPause.classList.add('bg-orange-500', 'hover:bg-orange-600');
+                lastTime = performance.now(); // reset delta timer
+            } else {
+                btnPlayPause.innerText = 'Fortsetzen';
+                btnPlayPause.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+                btnPlayPause.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            }
+        });
+
+        btnReset.addEventListener('click', () => {
+            isRunning = false;
+            time = 0;
+            history = [];
+            btnPlayPause.innerText = 'Schwingung starten';
+            btnPlayPause.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+            btnPlayPause.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            updateStatic();
+        });
+
+        // --- SVG Graph Generator ---
+        function generateGraphHTML(dataKey, color, limitValue, label, unit) {
+            if (history.length < 2) return '';
+
+            const width = 400;
+            const height = 120;
+            const padding = 10;
+            const timeWindow = 8;
+            
+            const latestTime = history[history.length - 1].time;
+            let startTime = latestTime - timeWindow;
+            if (startTime < 0) startTime = 0; // Don't scroll until window is full
+
+            // Fixed bounds for oscillation (symmetrical)
+            let maxY = limitValue * 1.2;
+            let minY = -maxY;
+            if (maxY === 0) maxY = 1, minY = -1;
+            const rangeY = maxY - minY;
+
+            const points = history.filter(p => p.time >= startTime).map(p => {
+                const x = ((p.time - startTime) / timeWindow) * width;
+                const y = height - ((p[dataKey] - minY) / rangeY) * height;
+                return `${x},${y}`;
+            }).join(' ');
+
+            const yZero = height - ((0 - minY) / rangeY) * height;
+
+            let svgContent = `<svg viewBox="0 0 ${width} ${height + 2 * padding}" class="w-full h-full" preserveAspectRatio="none"><g transform="translate(0, ${padding})">`;
+            svgContent += `<line x1="0" y1="${yZero}" x2="${width}" y2="${yZero}" stroke="currentColor" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="4 4" class="text-slate-500" />`;
+            svgContent += `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />`;
+            svgContent += `</g></svg>`;
+            
+            let overlay = `<div class="absolute top-2 left-2 text-sm font-semibold flex items-center bg-white/80 px-2 py-1 rounded shadow-sm backdrop-blur"><div class="w-3 h-3 rounded-full mr-2" style="background-color: ${color}"></div>${label}: ${history[history.length - 1][dataKey].toFixed(2)} ${unit}</div>`;
+
+            return svgContent + overlay;
+        }
+
+        function getPhysics() {
+            const C = C_mF * 1e-3; // Farad
+            const omega = 1 / Math.sqrt(L * C);
+            const freq = omega / (2 * Math.PI);
+            const period = 1 / freq;
+            
+            // Analytical solution
+            // U_C(t) = U0 * cos(omega * t)
+            // I(t) = U0 * sqrt(C/L) * sin(omega * t)
+            const I_max = U0 * Math.sqrt(C / L);
+            const U_c = U0 * Math.cos(omega * time);
+            const I_val = I_max * Math.sin(omega * time);
+
+            const W_e = 0.5 * C * U_c * U_c;
+            const W_m = 0.5 * L * I_val * I_val;
+            const W_tot = 0.5 * C * U0 * U0;
+
+            return { omega, freq, period, I_max, U_c, I_val, W_e, W_m, W_tot };
+        }
+
+        function updateStatic() {
+            const phys = getPhysics();
+            
+            txtT.innerText = phys.period.toFixed(2) + ' s';
+            txtF.innerText = phys.freq.toFixed(2) + ' Hz';
+            txtImax.innerText = phys.I_max.toFixed(2) + ' A';
+            txtWtot.innerText = phys.W_tot.toFixed(2) + ' J';
+
+            updateVisuals(phys);
+            
+            // Reset graphs
+            history = [{ time: 0, U_c: U0, I: 0 }];
+            graphContainerU.innerHTML = generateGraphHTML('U_c', '#10b981', U0, 'U_c', 'V');
+            graphContainerI.innerHTML = generateGraphHTML('I', '#3b82f6', phys.I_max, 'I', 'A');
+        }
+
+        function updateVisuals(phys) {
+            // Capacitor E-Field
+            const uRatio = phys.U_c / U0;
+            eField.setAttribute('opacity', Math.abs(uRatio) * 0.6);
+            if (uRatio > 0.05) {
+                chargeTop.setAttribute('opacity', uRatio); chargeTop.textContent = '+';
+                chargeBot.setAttribute('opacity', uRatio); chargeBot.textContent = '-';
+            } else if (uRatio < -0.05) {
+                chargeTop.setAttribute('opacity', Math.abs(uRatio)); chargeTop.textContent = '-';
+                chargeBot.setAttribute('opacity', Math.abs(uRatio)); chargeBot.textContent = '+';
+            } else {
+                chargeTop.setAttribute('opacity', 0);
+                chargeBot.setAttribute('opacity', 0);
+            }
+
+            // Inductor B-Field
+            const iRatio = phys.I_max > 0 ? phys.I_val / phys.I_max : 0;
+            coilGlow.setAttribute('opacity', Math.abs(iRatio) * 0.8);
+
+            // Current Arrows (Direction based on sign of I)
+            if (Math.abs(iRatio) > 0.1) {
+                currentArrowTop.style.display = 'block';
+                currentArrowBot.style.display = 'block';
+                // Flip arrow if current is negative
+                if (phys.I_val > 0) {
+                    currentArrowTop.querySelector('path').setAttribute('d', 'M 190 40 L 200 50 L 190 60');
+                    currentArrowBot.querySelector('path').setAttribute('d', 'M 210 240 L 200 250 L 210 260');
+                } else {
+                    currentArrowTop.querySelector('path').setAttribute('d', 'M 210 40 L 200 50 L 210 60');
+                    currentArrowBot.querySelector('path').setAttribute('d', 'M 190 240 L 200 250 L 190 260');
+                }
+            } else {
+                currentArrowTop.style.display = 'none';
+                currentArrowBot.style.display = 'none';
+            }
+
+            // Energy Bar
+            const percentWe = phys.W_tot > 0 ? (phys.W_e / phys.W_tot) * 100 : 100;
+            const percentWm = phys.W_tot > 0 ? (phys.W_m / phys.W_tot) * 100 : 0;
+            barWe.style.width = percentWe + '%';
+            barWm.style.width = percentWm + '%';
+        }
+
+        // --- Main Loop ---
+        function loop(now) {
+            if (isRunning) {
+                const dt = Math.min((now - lastTime) / 1000, 0.1); // max 100ms step
+                time += dt;
+
+                const phys = getPhysics();
+
+                // History for graphs (approx 30fps)
+                const lastPoint = history[history.length - 1];
+                if (!lastPoint || (time - lastPoint.time >= 0.03)) {
+                    history.push({ time: time, U_c: phys.U_c, I: phys.I_val });
+                    const windowSize = 8;
+                    history = history.filter(p => p.time > time - windowSize);
+                    
+                    graphContainerU.innerHTML = generateGraphHTML('U_c', '#10b981', U0, 'U_c', 'V');
+                    graphContainerI.innerHTML = generateGraphHTML('I', '#3b82f6', phys.I_max, 'I', 'A');
+                }
+
+                updateVisuals(phys);
+            }
+            lastTime = now;
+            requestAnimationFrame(loop);
+        }
+
+        // Init
+        updateStatic();
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>

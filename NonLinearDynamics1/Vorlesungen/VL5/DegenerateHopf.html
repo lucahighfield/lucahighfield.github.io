@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Degenerate Hopf (Bautin) Bifurcation Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Include MathJax for rendering equations -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Slate 50 */
+            color: #334155; /* Slate 700 */
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            overflow: hidden;
+        }
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+        .axis line, .axis path {
+            stroke: #cbd5e1; /* Slate 300 */
+        }
+        .axis text {
+            fill: #64748b; /* Slate 500 */
+            font-size: 12px;
+        }
+        
+        /* Bifurcation Curves Colors */
+        .curve-hopf-super { stroke: #eab308; stroke-width: 2; fill: none; } /* Yellow solid */
+        .curve-hopf-sub { stroke: #eab308; stroke-width: 2; fill: none; stroke-dasharray: 4,4; } /* Yellow dashed */
+        .curve-sn-lc { stroke: #3b82f6; stroke-width: 2; fill: none; } /* Blue solid */
+        
+        .interactive-point {
+            cursor: pointer;
+            fill: #ef4444; /* Red */
+            stroke: white;
+            stroke-width: 2;
+            transition: r 0.1s;
+        }
+        .interactive-point:hover {
+            r: 7;
+        }
+
+        /* Abstract Phase Space Grid */
+        .bg-grid {
+            stroke: #f1f5f9; /* very light slate */
+            stroke-width: 1;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center min-h-screen">
+
+    <div class="max-w-6xl w-full">
+        <header class="mb-6">
+            <h1 class="text-3xl font-bold text-slate-800 mb-2">Degenerate Hopf (Bautin) Explorer</h1>
+            <p class="text-slate-600 mb-4">
+                Explore the unfolding of the degenerate Hopf bifurcation. This system exhibits transitions between subcritical and supercritical Hopf bifurcations via a Saddle-Node of Periodic Orbits (SNOPO).
+            </p>
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                <p class="font-semibold text-sm mb-2 text-slate-700">Normal Form (Polar Coordinates):</p>
+                <div class="text-center overflow-x-auto py-2">
+                     $$
+                     \begin{aligned}
+                     \dot{r} &= \lambda_1 r + \lambda_2 r^3 - r^5 \\
+                     \dot{\theta} &= \omega
+                     \end{aligned}
+                     $$
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Parameter Space Section -->
+            <div class="flex flex-col">
+                <h2 class="text-xl font-semibold mb-3 text-slate-700 text-center">Parameter Space ($\lambda_2, \lambda_1$)</h2>
+                <div class="canvas-container relative" id="param-container">
+                    <svg id="param-space"></svg>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-4 text-sm justify-center">
+                    <div class="flex items-center"><span class="w-4 h-1 bg-orange-500 inline-block mr-2 rounded"></span> Hopf (Super/Subcritical)</div>
+                    <div class="flex items-center"><span class="w-4 h-1 bg-blue-500 inline-block mr-2 rounded"></span> SNOPO / SNP Curve</div>
+                </div>
+                
+                <div class="mt-6 bg-slate-50 p-4 rounded border border-slate-200">
+                    <h3 class="font-semibold text-sm mb-2">Current Parameters:</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-semibold text-slate-700">$\lambda_2$ (Horizontal Axis)</label>
+                                <span id="val-lambda2" class="font-mono text-sm text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">0.000</span>
+                            </div>
+                            <input type="range" id="slider-lambda2" min="-1.5" max="1.5" step="0.01" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-xs font-semibold text-slate-700">$\lambda_1$ (Vertical Axis)</label>
+                                <span id="val-lambda1" class="font-mono text-sm text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">0.000</span>
+                            </div>
+                            <input type="range" id="slider-lambda1" min="-1.0" max="1.0" step="0.005" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamics Sketch Section -->
+            <div class="flex flex-col">
+                <h2 class="text-xl font-semibold mb-3 text-slate-700 text-center">Dynamics Sketch (Polar $r, \theta$)</h2>
+                <div class="canvas-container relative flex items-center justify-center" id="phase-container" style="height: 300px; border: 2px dashed #cbd5e1; background-color: white; box-shadow: none;">
+                    <svg id="phase-space"></svg>
+                </div>
+                
+                <div class="mt-4 grid grid-cols-2 gap-2">
+                    <button onclick="jumpTo('stable_origin')" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm py-2 px-2 rounded shadow-sm transition-colors">Stable Origin</button>
+                    <button onclick="jumpTo('snp')" class="bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-800 text-sm py-2 px-2 rounded shadow-sm transition-colors font-medium">SNP Curve ($\lambda_1 = -\lambda_2^2/4$)</button>
+                    <button onclick="jumpTo('bistable')" class="bg-purple-50 border border-purple-200 hover:bg-purple-100 text-purple-800 text-sm py-2 px-2 rounded shadow-sm transition-colors font-medium">Bistable (Two L.C.s)</button>
+                    <button onclick="jumpTo('sub_hopf')" class="bg-orange-50 border border-orange-200 hover:bg-orange-100 text-orange-800 text-sm py-2 px-2 rounded shadow-sm transition-colors font-medium">Subcritical Hopf</button>
+                    <button onclick="jumpTo('stable_lc')" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm py-2 px-2 rounded shadow-sm transition-colors">Stable L.C. ($\lambda_1 > 0$)</button>
+                    <button onclick="jumpTo('super_hopf')" class="bg-orange-50 border border-orange-200 hover:bg-orange-100 text-orange-800 text-sm py-2 px-2 rounded shadow-sm transition-colors font-medium">Supercritical Hopf</button>
+                </div>
+                
+                <div class="mt-4 bg-slate-50 p-4 rounded border border-slate-200" id="fixed-points-info">
+                    <h3 class="font-semibold text-sm mb-2">Qualitative State:</h3>
+                    <div id="fp-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const config = {
+            paramSpace: {
+                domain: [-1.5, 1.5], // lambda2 (horizontal axis)
+                range: [-1.0, 1.0]   // lambda1 (vertical axis)
+            }
+        };
+
+        const state = {
+            lambda2: 1.0,
+            lambda1: -0.1
+        };
+
+        const l1Span = document.getElementById('val-lambda1');
+        const l2Span = document.getElementById('val-lambda2');
+        const sliderL1 = document.getElementById('slider-lambda1');
+        const sliderL2 = document.getElementById('slider-lambda2');
+        const fpList = document.getElementById('fp-list');
+
+        let paramWidth, paramHeight, paramXScale, paramYScale, paramSvg, paramG;
+        let phaseWidth, phaseHeight, phaseSvg, trajG, pointG, bgG;
+
+        function initParamSpace() {
+            const container = document.getElementById('param-container');
+            paramWidth = container.clientWidth;
+            paramHeight = container.clientHeight;
+            const margin = { top: 20, right: 30, bottom: 40, left: 40 };
+
+            paramSvg = d3.select("#param-space").attr("viewBox", `0 0 ${paramWidth} ${paramHeight}`);
+            paramSvg.selectAll("*").remove(); 
+
+            // X is lambda2, Y is lambda1 (as per the notes)
+            paramXScale = d3.scaleLinear().domain(config.paramSpace.domain).range([margin.left, paramWidth - margin.right]);
+            paramYScale = d3.scaleLinear().domain(config.paramSpace.range).range([paramHeight - margin.bottom, margin.top]);
+
+            const xAxis = d3.axisBottom(paramXScale).ticks(7);
+            const yAxis = d3.axisLeft(paramYScale).tickValues([-1, -0.5, -0.25, 0, 0.5, 1]);
+
+            paramSvg.append("g").attr("class", "axis").attr("transform", `translate(0,${paramYScale(0)})`).call(xAxis);
+            paramSvg.append("g").attr("class", "axis").attr("transform", `translate(${paramXScale(0)},0)`).call(yAxis);
+                
+            // Axis labels mapped to image
+            paramSvg.append("text").attr("x", paramWidth - margin.right + 10).attr("y", paramYScale(0) + 4).style("font-size", "14px").style("font-weight", "bold").text("λ₂");
+            paramSvg.append("text").attr("x", paramXScale(0) - 12).attr("y", margin.top - 5).style("font-size", "14px").style("font-weight", "bold").style("text-anchor", "middle").text("λ₁");
+
+            paramG = paramSvg.append("g");
+            drawBifurcationCurves();
+
+            const handleDrag = d3.drag().on("drag", (event) => {
+                let newL2 = Math.max(config.paramSpace.domain[0], Math.min(config.paramSpace.domain[1], paramXScale.invert(event.x)));
+                let newL1 = Math.max(config.paramSpace.range[0], Math.min(config.paramSpace.range[1], paramYScale.invert(event.y)));
+                updateParameters(newL2, newL1);
+            });
+
+            paramSvg.on("click", (event) => {
+                const [x, y] = d3.pointer(event);
+                const newL2 = paramXScale.invert(x);
+                const newL1 = paramYScale.invert(y);
+                if (newL2 >= config.paramSpace.domain[0] && newL2 <= config.paramSpace.domain[1] &&
+                    newL1 >= config.paramSpace.range[0] && newL1 <= config.paramSpace.range[1]) {
+                    updateParameters(newL2, newL1);
+                }
+            });
+
+            paramG.append("circle")
+                .attr("id", "param-handle")
+                .attr("class", "interactive-point")
+                .attr("r", 5)
+                .call(handleDrag);
+
+            updateParamHandle();
+        }
+
+        function drawBifurcationCurves() {
+            // Hopf Bifurcation (lambda1 = 0)
+            paramG.append("line")
+                .attr("x1", paramXScale(config.paramSpace.domain[0])).attr("y1", paramYScale(0))
+                .attr("x2", paramXScale(config.paramSpace.domain[1])).attr("y2", paramYScale(0))
+                .attr("stroke", "#f97316").attr("stroke-width", 2); // Orange
+
+            // Hopf Labels
+            paramG.append("text").attr("x", paramXScale(-0.8)).attr("y", paramYScale(0) - 10).text("super critical").attr("fill", "#f97316").style("font-size", "11px").style("font-weight", "bold").style("text-anchor", "middle");
+            paramG.append("text").attr("x", paramXScale(0.8)).attr("y", paramYScale(0) - 10).text("sub critical").attr("fill", "#f97316").style("font-size", "11px").style("font-weight", "bold").style("text-anchor", "middle");
+            paramG.append("text").attr("x", paramXScale(-1.3)).attr("y", paramYScale(0) + 14).text("Hopf").attr("fill", "#f97316").style("font-size", "12px").style("font-weight", "bold");
+
+            // SNP (SNOPO) Curve (lambda1 = -lambda2^2 / 4,  lambda2 > 0)
+            const snCurveData = [];
+            for (let l2 = 0; l2 <= config.paramSpace.domain[1]; l2 += 0.02) {
+                let l1 = -(l2 * l2) / 4;
+                if (l1 >= config.paramSpace.range[0]) {
+                    snCurveData.push({ l2: l2, l1: l1 });
+                }
+            }
+            const snLine = d3.line().x(d => paramXScale(d.l2)).y(d => paramYScale(d.l1));
+            paramG.append("path").datum(snCurveData).attr("fill", "none").attr("stroke", "#3b82f6").attr("stroke-width", 2).attr("d", snLine);
+            paramG.append("text").attr("x", paramXScale(1.1)).attr("y", paramYScale(-0.4)).text("SNP").attr("fill", "#3b82f6").style("font-size", "13px").style("font-weight", "bold");
+                
+            // Degenerate Hopf (DH) Point
+            paramG.append("text").attr("x", paramXScale(0) + 6).attr("y", paramYScale(0) - 6).text("DH").attr("fill", "#ec4899").style("font-size", "12px").style("font-weight", "bold");
+
+            // Helper to draw the mini icons from the notes exactly
+            const drawMiniSketch = (x, y, circles) => {
+                paramG.append("circle").attr("cx", x).attr("cy", y).attr("r", 1.5).attr("fill", "black");
+                circles.forEach((type, i) => {
+                    let r = type === 'snp' ? 7 : (i === 0 && circles.length > 1 ? 4 : 8);
+                    let dash = type === 'dashed' ? '2,2' : 'none';
+                    let width = type === 'snp' ? 2 : 1;
+                    paramG.append("circle").attr("cx", x).attr("cy", y).attr("r", r)
+                        .attr("fill", "none").attr("stroke", "black").attr("stroke-width", width).attr("stroke-dasharray", dash);
+                });
+            };
+
+            // Draw miniature quadrant sketches
+            drawMiniSketch(paramXScale(-0.75), paramYScale(0.5), ['solid']);       // Top Left
+            drawMiniSketch(paramXScale(0.75), paramYScale(0.5), ['solid']);        // Top Right
+            drawMiniSketch(paramXScale(-0.75), paramYScale(-0.5), []);             // Bottom Left
+            drawMiniSketch(paramXScale(0.75), paramYScale(-0.06), ['dashed', 'solid']); // Bottom Right (Bistable)
+            drawMiniSketch(paramXScale(1.2), paramYScale(-0.36), ['snp']);       // On SNP Curve
+        }
+
+        function initPhaseSpace() {
+            const container = document.getElementById('phase-container');
+            phaseWidth = container.clientWidth;
+            phaseHeight = container.clientHeight;
+            
+            phaseSvg = d3.select("#phase-space").attr("viewBox", `0 0 ${phaseWidth} ${phaseHeight}`);
+            phaseSvg.selectAll("*").remove(); 
+
+            bgG = phaseSvg.append("g").attr("id", "sketch-bg");
+            trajG = phaseSvg.append("g").attr("id", "sketch-trajectories");
+            pointG = phaseSvg.append("g").attr("id", "sketch-fixed-points");
+
+            // Abstract polar grid
+            const cx = phaseWidth / 2;
+            const cy = phaseHeight / 2;
+            bgG.append("line").attr("x1", cx).attr("y1", 0).attr("x2", cx).attr("y2", phaseHeight).attr("class", "bg-grid");
+            bgG.append("line").attr("x1", 0).attr("y1", cy).attr("x2", phaseWidth).attr("y2", cy).attr("class", "bg-grid");
+
+            updatePhaseSpace();
+        }
+
+        function drawDynamicsSketch() {
+            pointG.selectAll("*").remove();
+            trajG.selectAll("*").remove(); 
+            
+            const l1 = state.lambda1;
+            const l2 = state.lambda2;
+            const cx = phaseWidth / 2;
+            const cy = phaseHeight / 2;
+            
+            let description = "";
+            let stateType = 'none';
+            
+            // Limit cycle radii calculation
+            const delta = l2 * l2 + 4 * l1;
+            let r_in = 0;
+            let r_out = 0;
+            
+            const rScaleMultiplier = 80; 
+            
+            if (l1 > 0) {
+                description = "Origin is unstable. One globally stable limit cycle exists.";
+                stateType = 'stable_lc';
+                r_out = Math.sqrt((l2 + Math.sqrt(delta)) / 2);
+            } else if (Math.abs(l1) <= 0.005) {
+                if (l2 < 0) {
+                    description = "Supercritical Hopf boundary: Stable limit cycle born from origin.";
+                    stateType = 'super_hopf';
+                } else if (l2 > 0) {
+                    description = "Subcritical Hopf boundary: Inner unstable limit cycle collapses into origin.";
+                    stateType = 'sub_hopf';
+                    r_out = Math.sqrt(l2); 
+                } else {
+                    description = "Degenerate Hopf (DH) Point.";
+                    stateType = 'dh';
+                }
+            } else { // l1 < 0
+                if (l2 > 0) {
+                    const snCurveVal = -(l2 * l2) / 4;
+                    if (l1 < snCurveVal - 0.005) {
+                        description = "Globally stable origin. No limit cycles exist.";
+                        stateType = 'stable_origin';
+                    } else if (Math.abs(l1 - snCurveVal) <= 0.005) {
+                        description = "SNP (Saddle-Node of Periodics). Semi-stable limit cycle appears.";
+                        stateType = 'snp';
+                        r_out = Math.sqrt(l2 / 2); 
+                    } else { // snCurveVal < l1 < 0
+                        description = "Bistability: Stable origin and stable outer LC, separated by unstable inner LC.";
+                        stateType = 'bistable';
+                        r_in = Math.sqrt((l2 - Math.sqrt(delta)) / 2);
+                        r_out = Math.sqrt((l2 + Math.sqrt(delta)) / 2);
+                    }
+                } else {
+                    description = "Globally stable origin. No limit cycles exist.";
+                    stateType = 'stable_origin';
+                }
+            }
+
+            // Helper for Limit Cycles
+            const drawCircle = (radius, strokeColor, width, dashed=false) => {
+                const scaledR = radius * rScaleMultiplier;
+                trajG.append("circle")
+                    .attr("cx", cx).attr("cy", cy).attr("r", scaledR)
+                    .attr("fill", "none")
+                    .attr("stroke", strokeColor).attr("stroke-width", width)
+                    .attr("stroke-dasharray", dashed ? "5,5" : "none");
+            };
+
+            // Helper for Smooth Spiraling Trajectories
+            const drawSpiral = (rStart, rEnd, color) => {
+                const numPaths = 1; // Reduced from 2 for a cleaner sketch
+                for(let j=0; j<numPaths; j++) {
+                    const thetaOffset = (j * 2 * Math.PI) / numPaths;
+                    const spiral = d3.path();
+                    const steps = 100;
+                    
+                    let started = false;
+                    for(let i=0; i<=steps; i++) {
+                        const t = i / steps; 
+                        const theta = t * 3 * Math.PI + thetaOffset; 
+                        
+                        let r;
+                        if (rEnd > 2.0) { // Escaping outward
+                            r = rStart + (3.0 - rStart) * (t * t); 
+                        } else { // Exponential approach to rEnd
+                            r = rEnd + (rStart - rEnd) * Math.exp(-4.6 * t);
+                        }
+                        
+                        const scaledR = r * rScaleMultiplier;
+                        const px = cx + scaledR * Math.cos(theta);
+                        const py = cy - scaledR * Math.sin(theta); 
+                        
+                        if (!started) {
+                            spiral.moveTo(px, py);
+                            started = true;
+                        } else {
+                            spiral.lineTo(px, py);
+                        }
+                    }
+                    
+                    trajG.append("path")
+                        .attr("d", spiral.toString())
+                        .attr("fill", "none")
+                        .attr("stroke", color)
+                        .attr("stroke-width", 1.5)
+                        .attr("opacity", 0.6);
+                }
+            };
+
+            // Draw specific visual state mapping
+            if (stateType === 'stable_origin' || stateType === 'dh' || stateType === 'super_hopf') {
+                drawSpiral(1.5, 0, "#64748b");
+            } 
+            else if (stateType === 'snp') {
+                drawCircle(r_out, "#1e293b", 2.5); // Thick solid circle
+                drawSpiral(1.5, r_out + 0.02, "#64748b"); // Outer in
+                drawSpiral(r_out - 0.02, 0, "#64748b");   // Inner to origin
+            }
+            else if (stateType === 'bistable') {
+                drawCircle(r_in, "#ef4444", 2, true);  // Inner dashed
+                drawCircle(r_out, "#1e293b", 2, false); // Outer solid
+                drawSpiral(1.5, r_out + 0.02, "#64748b"); // outside to outer LC
+                drawSpiral(r_in + 0.02, r_out - 0.02, "#64748b"); // inner LC to outer LC
+                drawSpiral(r_in - 0.02, 0, "#64748b"); // inner LC to origin
+            }
+            else if (stateType === 'stable_lc' || stateType === 'sub_hopf') {
+                drawCircle(r_out, "#1e293b", 2, false); // Outer solid
+                drawSpiral(1.5, r_out + 0.02, "#64748b"); // Outside in
+                drawSpiral(0.05, r_out - 0.02, "#64748b"); // Inside out
+            }
+
+            // Draw Origin Fixed Point
+            const originColor = (l1 < 0 || (l1===0 && l2<=0)) ? '#1e293b' : 'white'; // Black if stable, white if unstable
+            const originStroke = (l1 < 0 || (l1===0 && l2<=0)) ? 'none' : '#ef4444'; 
+            
+            pointG.append("circle")
+                .attr("cx", cx).attr("cy", cy)
+                .attr("r", 5).attr("fill", originColor).attr("stroke", originStroke).attr("stroke-width", 2);
+
+            fpList.innerHTML = `<p class="text-slate-700 font-medium">${description}</p>`;
+        }
+
+        function updateParameters(l2, l1, source='click') {
+            state.lambda2 = parseFloat(l2.toFixed(3));
+            state.lambda1 = parseFloat(l1.toFixed(3));
+            
+            l2Span.textContent = state.lambda2.toFixed(3);
+            l1Span.textContent = state.lambda1.toFixed(3);
+            
+            if (source !== 'slider') {
+                sliderL2.value = state.lambda2;
+                sliderL1.value = state.lambda1;
+            }
+            
+            updateParamHandle();
+            updatePhaseSpace();
+        }
+
+        function updateParamHandle() {
+            d3.select("#param-handle").attr("cx", paramXScale(state.lambda2)).attr("cy", paramYScale(state.lambda1));
+        }
+
+        function updatePhaseSpace() {
+            drawDynamicsSketch();
+        }
+
+        function jumpTo(stateType) {
+            let l1, l2;
+            switch(stateType) {
+                case 'stable_origin': l2 = -0.5; l1 = -0.5; break;
+                case 'snp': l2 = 1.0; l1 = -0.25; break;
+                case 'bistable': l2 = 1.0; l1 = -0.1; break;
+                case 'sub_hopf': l2 = 1.0; l1 = 0.0; break; 
+                case 'stable_lc': l2 = 0.0; l1 = 0.5; break;
+                case 'super_hopf': l2 = -1.0; l1 = 0.0; break; 
+            }
+            updateParameters(l2, l1);
+        }
+
+        sliderL2.addEventListener('input', (e) => updateParameters(parseFloat(e.target.value), state.lambda1, 'slider'));
+        sliderL1.addEventListener('input', (e) => updateParameters(state.lambda2, parseFloat(e.target.value), 'slider'));
+
+        window.addEventListener('resize', () => {
+            initParamSpace();
+            initPhaseSpace();
+        });
+
+        window.onload = () => {
+            initParamSpace();
+            initPhaseSpace();
+            
+            sliderL2.value = state.lambda2;
+            sliderL1.value = state.lambda1;
+            updateParameters(state.lambda2, state.lambda1); 
+            
+            if (window.MathJax) {
+                MathJax.typesetPromise();
+            }
+        };
+    </script>
+</body>
+</html>

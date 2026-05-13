@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Bifurcations of Limit Cycles</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- KaTeX for Equations -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Slate 50 */
+            color: #0f172a; /* Slate 900 */
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        .math-font { font-family: 'JetBrains Mono', monospace; }
+
+        .panel {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -7px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.5rem;
+        }
+
+        .nav-btn {
+            background-color: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+        }
+        .nav-btn:hover { background-color: #e2e8f0; }
+        .nav-btn.active {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Colors matching the notes */
+        .color-hopf { color: #ea580c; }   
+        .color-snp { color: #059669; }    
+        .color-sniper { color: #2563eb; } 
+        .color-sl { color: #9333ea; }     
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row p-4 gap-4 box-border overflow-hidden">
+
+    <!-- Left Panel -->
+    <div class="w-full md:w-[360px] lg:w-[420px] flex flex-col gap-4 h-full overflow-y-auto pr-2 shrink-0">
+        
+        <div class="panel rounded-xl p-6">
+            <h1 class="text-2xl font-bold mb-1 tracking-tight text-slate-800">Global Bifurcations</h1>
+            <p id="full-name" class="text-blue-600 font-semibold text-sm mb-1"></p>
+            <p class="text-slate-500 text-sm mb-5">Interactive exploration of limit cycles.</p>
+            
+            <div class="flex flex-wrap gap-2 mb-6" id="bifurcation-selector">
+                <button data-type="hopf" class="nav-btn active flex-1 py-2 px-2 rounded-lg text-sm font-semibold transition-all">Super. Hopf</button>
+                <button data-type="snp" class="nav-btn flex-1 py-2 px-2 rounded-lg text-sm font-semibold transition-all">SNP</button>
+                <button data-type="sniper" class="nav-btn flex-1 py-2 px-2 rounded-lg text-sm font-semibold transition-all">SNIPER</button>
+                <button data-type="sl" class="nav-btn flex-1 py-2 px-2 rounded-lg text-sm font-semibold transition-all">Saddle Loop</button>
+            </div>
+
+            <div class="mb-6">
+                <div class="flex justify-between items-end mb-2">
+                    <div>
+                        <label class="text-sm font-semibold text-slate-700 block">Parameter ($\mu$)</label>
+                        <span id="mu-crit-display" class="text-xs text-slate-400 font-medium">Critical: $\mu_c = 0$</span>
+                    </div>
+                    <span id="mu-display" class="math-font text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100">0.00</span>
+                </div>
+                <input type="range" id="mu-slider" min="-1" max="1" step="0.005" value="0">
+            </div>
+
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <h2 class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">System Equations</h2>
+                <div id="equation-display" class="text-lg text-center overflow-x-auto py-2 text-slate-800">
+                    <!-- KaTeX injected here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="panel rounded-xl p-6 flex-1">
+            <h2 class="text-lg font-bold mb-4 text-slate-800">Scaling Laws <span class="text-sm font-normal text-slate-500 ml-2">as $\mu \to \mu_c$</span></h2>
+
+            <div class="overflow-hidden rounded-lg border border-slate-200">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-100 text-slate-600">
+                        <tr>
+                            <th class="px-4 py-3 font-semibold border-b border-slate-200">Bifurcation</th>
+                            <th class="px-4 py-3 font-semibold border-b border-slate-200 text-center">Amplitude</th>
+                            <th class="px-4 py-3 font-semibold border-b border-slate-200 text-center">Period</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                        <tr class="transition hover:bg-slate-50">
+                            <td class="px-4 py-3 font-bold text-sm color-hopf">Super. Hopf</td>
+                            <td class="px-4 py-3 text-center math-font bg-slate-50/50">$\mathcal{O}(\sqrt{\mu})$</td>
+                            <td class="px-4 py-3 text-center math-font bg-slate-50/50">$\mathcal{O}(1)$</td>
+                        </tr>
+                        <tr class="transition hover:bg-slate-50">
+                            <td class="px-4 py-3 font-bold text-sm color-snp">SNP</td>
+                            <td class="px-4 py-3 text-center math-font bg-slate-50/50">$\mathcal{O}(1)$</td>
+                            <td class="px-4 py-3 text-center math-font bg-slate-50/50">$\mathcal{O}(1)$</td>
+                        </tr>
+                        <tr class="transition hover:bg-slate-50">
+                            <td class="px-4 py-3 font-bold text-sm color-sniper">SNIPER</td>
+                            <td class="px-4 py-3 text-center math-font bg-slate-50/50">$\mathcal{O}(1)$</td>
+                            <td class="px-4 py-3 text-center math-font bg-slate-50/50">$\mathcal{O}(1/\sqrt{\mu})$</td>
+                        </tr>
+                        <tr class="transition hover:bg-slate-50">
+                            <td class="px-4 py-3 font-bold text-sm color-sl">Saddle Loop</td>
+                            <td class="px-4 py-3 text-center math-font bg-slate-50/50">$\mathcal{O}(1)$</td>
+                            <td class="px-4 py-3 text-center math-font bg-slate-50/50">$\mathcal{O}(|\ln |\mu||)$</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="w-full flex-1 flex flex-col gap-4 h-full min-w-0">
+        
+        <!-- Phase Portrait Canvas -->
+        <div class="panel rounded-xl flex-1 relative overflow-hidden flex flex-col min-h-[300px]">
+            <div class="absolute top-4 left-4 z-10 pointer-events-none">
+                <h3 class="text-sm font-bold text-slate-800 bg-white/80 px-2 py-1 rounded">Phase Portrait $(x, y)$</h3>
+                <div class="flex gap-3 mt-1 bg-white/80 px-2 py-1 rounded text-xs border border-slate-200">
+                    <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-slate-800 inline-block"></span> Stable</span>
+                    <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-slate-800 inline-block border-t border-dashed border-slate-800 bg-transparent"></span> Unstable</span>
+                </div>
+            </div>
+            <canvas id="phase-canvas" class="w-full h-full bg-slate-50"></canvas>
+        </div>
+
+        <!-- 1D Plot Canvas Container -->
+        <div id="plots-container" class="h-[30vh] min-h-[220px] flex flex-row gap-4 shrink-0">
+            <!-- Plot 1 -->
+            <div class="panel rounded-xl flex-1 relative overflow-hidden flex flex-col" id="plot-wrapper-1">
+                <div class="absolute top-2 left-3 z-10 pointer-events-none bg-white/80 px-1 rounded">
+                    <h3 class="text-xs font-bold text-slate-700" id="plot-title-1">Plot 1</h3>
+                </div>
+                <canvas id="plot-canvas-1" class="w-full h-full"></canvas>
+            </div>
+            <!-- Plot 2 (Dynamically shown for SNIPER) -->
+            <div class="panel rounded-xl flex-1 relative overflow-hidden flex flex-col hidden" id="plot-wrapper-2">
+                <div class="absolute top-2 left-3 z-10 pointer-events-none bg-white/80 px-1 rounded">
+                    <h3 class="text-xs font-bold text-slate-700" id="plot-title-2">Plot 2</h3>
+                </div>
+                <canvas id="plot-canvas-2" class="w-full h-full"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const BIFURCATIONS = {
+            hopf: {
+                id: 'hopf', color: '#ea580c',
+                fullName: 'Supercritical Hopf Bifurcation',
+                muMin: -0.5, muMax: 1.0, muDefault: 0.5, muCrit: 0,
+                eq: '\\begin{aligned} \\dot{r} &= \\mu r - r^3 \\\\ \\dot{\\phi} &= 1 \\end{aligned}',
+                plots: [
+                    { title: '$\\dot{r}$ vs $r$', xLabel: 'r', yLabel: '\\dot{r}', domain: [-0.2, 1.5], range: [-0.5, 0.5], f: (r, mu) => mu*r - r*r*r }
+                ],
+                phaseDomain: [-1.5, 1.5],
+                dx: (x, y, mu) => mu*x - y - x*(x*x + y*y),
+                dy: (x, y, mu) => x + mu*y - y*(x*x + y*y)
+            },
+            snp: {
+                id: 'snp', color: '#059669',
+                fullName: 'Saddle-Node of Periodic Orbits (SNP)',
+                muMin: -0.5, muMax: 0.5, muDefault: 0.2, muCrit: 0,
+                eq: '\\begin{aligned} \\dot{r} &= \\mu - (r-1)^2 \\\\ \\dot{\\phi} &= 1 \\end{aligned}',
+                plots: [
+                    { title: '$\\dot{r}$ vs $r$', xLabel: 'r', yLabel: '\\dot{r}', domain: [-0.2, 2.2], range: [-0.6, 0.6], f: (r, mu) => mu - Math.pow(r-1, 2) }
+                ],
+                phaseDomain: [-2.5, 2.5],
+                dx: (x, y, mu) => {
+                    const r = Math.sqrt(x*x + y*y) + 1e-8;
+                    const rdot = mu - Math.pow(r - 1, 2);
+                    return (x/r)*rdot - y;
+                },
+                dy: (x, y, mu) => {
+                    const r = Math.sqrt(x*x + y*y) + 1e-8;
+                    const rdot = mu - Math.pow(r - 1, 2);
+                    return (y/r)*rdot + x;
+                }
+            },
+            sniper: {
+                id: 'sniper', color: '#2563eb',
+                fullName: 'Saddle-Node on Invariant Circle (SNIPER)',
+                muMin: 0.5, muMax: 1.5, muDefault: 0.9, muCrit: 1,
+                eq: '\\begin{aligned} \\dot{r} &= r(1-r^2) \\\\ \\dot{\\phi} &= \\mu - \\sin(\\phi) \\end{aligned}',
+                plots: [
+                    { title: '$\\dot{r}$ vs $r$', xLabel: 'r', yLabel: '\\dot{r}', domain: [-0.2, 1.5], range: [-0.5, 0.5], f: (r, mu) => r*(1-r*r) },
+                    { title: '$\\dot{\\phi}$ vs $\\phi$', xLabel: '\\phi', yLabel: '\\dot{\\phi}', domain: [-Math.PI, Math.PI], range: [-0.5, 2.5], f: (phi, mu) => mu - Math.sin(phi) }
+                ],
+                phaseDomain: [-1.5, 1.5],
+                dx: (x, y, mu) => {
+                    const r = Math.sqrt(x*x + y*y) + 1e-8;
+                    return x*(1 - r*r) - y*(mu - y/r);
+                },
+                dy: (x, y, mu) => {
+                    const r = Math.sqrt(x*x + y*y) + 1e-8;
+                    return y*(1 - r*r) + x*(mu - y/r);
+                }
+            },
+            sl: {
+                id: 'sl', color: '#9333ea',
+                fullName: 'Saddle-Loop (Homoclinic) Bifurcation',
+                muMin: -1.05, muMax: -0.65, muDefault: -0.88, muCrit: -0.8645,
+                eq: '\\begin{aligned} \\dot{x} &= y \\\\ \\dot{y} &= \\mu y + x - x^2 + xy \\end{aligned}',
+                plots: [], 
+                phaseDomain: [-0.5, 1.5],
+                phaseDomainY: [-0.8, 0.8],
+                dx: (x, y, mu) => y,
+                dy: (x, y, mu) => mu*y + x - x*x + x*y
+            }
+        };
+
+        let currentState = BIFURCATIONS.hopf;
+        let currentMu = currentState.muDefault;
+
+        const muSlider = document.getElementById('mu-slider');
+        const muDisplay = document.getElementById('mu-display');
+        const muCritDisplay = document.getElementById('mu-crit-display');
+        const equationDisplay = document.getElementById('equation-display');
+        
+        const phaseCanvas = document.getElementById('phase-canvas');
+        const phaseCtx = phaseCanvas.getContext('2d');
+        
+        const plotCanvas1 = document.getElementById('plot-canvas-1');
+        const plotCtx1 = plotCanvas1.getContext('2d');
+        const plotCanvas2 = document.getElementById('plot-canvas-2');
+        const plotCtx2 = plotCanvas2.getContext('2d');
+
+        // Math utilities
+        function rk4Step(x, y, mu, dt, dx_func, dy_func) {
+            const k1x = dx_func(x, y, mu); const k1y = dy_func(x, y, mu);
+            const k2x = dx_func(x + 0.5*dt*k1x, y + 0.5*dt*k1y, mu); const k2y = dy_func(x + 0.5*dt*k1x, y + 0.5*dt*k1y, mu);
+            const k3x = dx_func(x + 0.5*dt*k2x, y + 0.5*dt*k2y, mu); const k3y = dy_func(x + 0.5*dt*k2x, y + 0.5*dt*k2y, mu);
+            const k4x = dx_func(x + dt*k3x, y + dt*k3y, mu); const k4y = dy_func(x + dt*k3x, y + dt*k3y, mu);
+            return {
+                x: x + (dt/6)*(k1x + 2*k2x + 2*k3x + k4x),
+                y: y + (dt/6)*(k1y + 2*k2y + 2*k3y + k4y)
+            };
+        }
+
+        function resizeCanvases() {
+            const dpr = window.devicePixelRatio || 1;
+            [phaseCanvas, plotCanvas1, plotCanvas2].forEach(cvs => {
+                const rect = cvs.parentElement.getBoundingClientRect();
+                cvs.width = rect.width * dpr;
+                cvs.height = rect.height * dpr;
+                cvs.getContext('2d').scale(dpr, dpr);
+            });
+            drawAll();
+        }
+
+        window.addEventListener('resize', resizeCanvases);
+
+        function drawVectorField(ctx, w, h, mapX, mapY, pdX, pdY) {
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)'; // Faint slate
+            ctx.lineWidth = 1;
+            const steps = 20;
+            const stepX = (pdX[1] - pdX[0]) / steps;
+            const stepY = (pdY[1] - pdY[0]) / steps;
+
+            for(let i=0; i<=steps; i++) {
+                for(let j=0; j<=steps; j++) {
+                    const x = pdX[0] + i*stepX;
+                    const y = pdY[0] + j*stepY;
+                    
+                    let dx = currentState.dx(x, y, currentMu);
+                    let dy = currentState.dy(x, y, currentMu);
+                    
+                    const len = Math.sqrt(dx*dx + dy*dy);
+                    if(len < 0.001) continue;
+                    
+                    // Normalize and scale arrow
+                    const arrowLen = Math.min((stepX+stepY)/2 * 0.4, len*0.2); 
+                    dx = (dx/len) * arrowLen;
+                    dy = (dy/len) * arrowLen;
+
+                    const cx = mapX(x);
+                    const cy = mapY(y);
+                    const nx = mapX(x + dx);
+                    const ny = mapY(y + dy);
+
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(nx, ny);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function drawPhasePortrait() {
+            const w = phaseCanvas.width / (window.devicePixelRatio || 1);
+            const h = phaseCanvas.height / (window.devicePixelRatio || 1);
+            
+            phaseCtx.clearRect(0, 0, w, h);
+
+            let pdX = [...currentState.phaseDomain];
+            let pdY = currentState.phaseDomainY ? [...currentState.phaseDomainY] : [...currentState.phaseDomain];
+            
+            // Ensure 1:1 physical aspect ratio so mapped points match perfectly drawn circles
+            const spanX = pdX[1] - pdX[0];
+            const spanY = pdY[1] - pdY[0];
+            const canvasAspect = w / h;
+            const domainAspect = spanX / spanY;
+
+            if (canvasAspect > domainAspect) {
+                const newSpanX = spanY * canvasAspect;
+                const midX = (pdX[1] + pdX[0]) / 2;
+                pdX = [midX - newSpanX/2, midX + newSpanX/2];
+            } else {
+                const newSpanY = spanX / canvasAspect;
+                const midY = (pdY[1] + pdY[0]) / 2;
+                pdY = [midY - newSpanY/2, midY + newSpanY/2];
+            }
+
+            const mapX = x => ((x - pdX[0]) / (pdX[1] - pdX[0])) * w;
+            const mapY = y => h - ((y - pdY[0]) / (pdY[1] - pdY[0])) * h;
+
+            // Draw Vector Field
+            drawVectorField(phaseCtx, w, h, mapX, mapY, pdX, pdY);
+
+            // Axes
+            phaseCtx.strokeStyle = '#cbd5e1';
+            phaseCtx.lineWidth = 1.5;
+            phaseCtx.setLineDash([]);
+            phaseCtx.beginPath();
+            phaseCtx.moveTo(mapX(pdX[0]), mapY(0)); phaseCtx.lineTo(mapX(pdX[1]), mapY(0));
+            phaseCtx.moveTo(mapX(0), mapY(pdY[0])); phaseCtx.lineTo(mapX(0), mapY(pdY[1]));
+            phaseCtx.stroke();
+
+            // Helpers to draw circles and points
+            const drawCircle = (r, type, color) => {
+                phaseCtx.beginPath();
+                // Because aspect ratio is enforced 1:1 above, X scale accurately creates a uniform circle
+                const radius = r * (w / (pdX[1] - pdX[0]));
+                phaseCtx.arc(mapX(0), mapY(0), radius, 0, Math.PI*2);
+                phaseCtx.strokeStyle = color;
+                phaseCtx.lineWidth = 2.5;
+                if(type === 'dashed') phaseCtx.setLineDash([6, 6]);
+                else phaseCtx.setLineDash([]);
+                phaseCtx.stroke();
+                phaseCtx.setLineDash([]);
+            };
+
+            const drawPoint = (x, y, type, color) => {
+                phaseCtx.beginPath();
+                phaseCtx.arc(mapX(x), mapY(y), 5, 0, Math.PI*2);
+                phaseCtx.fillStyle = type === 'solid' ? color : '#fff';
+                phaseCtx.fill();
+                phaseCtx.strokeStyle = color;
+                phaseCtx.lineWidth = 2;
+                phaseCtx.stroke();
+            };
+
+            const drawTrajectory = (startX, startY, color, steps = 1000, dt = 0.02) => {
+                let p = { x: startX, y: startY };
+                phaseCtx.beginPath();
+                phaseCtx.moveTo(mapX(p.x), mapY(p.y));
+                phaseCtx.strokeStyle = color;
+                phaseCtx.lineWidth = 1.5;
+                for(let i=0; i<steps; i++) {
+                    p = rk4Step(p.x, p.y, currentMu, dt, currentState.dx, currentState.dy);
+                    phaseCtx.lineTo(mapX(p.x), mapY(p.y));
+                    if(p.x < pdX[0] || p.x > pdX[1] || p.y < pdY[0] || p.y > pdY[1]) break;
+                }
+                phaseCtx.stroke();
+            };
+
+            // Analytical / Numerical Drawings based on Bifurcation
+            if (currentState.id === 'hopf') {
+                if (currentMu > 0) {
+                    // Origin is unstable, limit cycle exists
+                    drawTrajectory(0.05, 0.05, 'rgba(100, 116, 139, 0.5)', 800, 0.05); // Spirals out from origin
+                    drawPoint(0, 0, 'empty', '#ef4444'); // Unstable origin
+                } else {
+                    // Origin is stable, no limit cycle
+                    drawTrajectory(0.5, 0.5, 'rgba(100, 116, 139, 0.5)', 800, 0.05); // Spirals in towards origin
+                    drawPoint(0, 0, 'solid', '#10b981'); // Stable origin
+                }
+                drawTrajectory(1.4, 1.4, 'rgba(100, 116, 139, 0.5)', 800, 0.05); // Outer trajectory spirals in
+
+                if (currentMu > 0) {
+                    drawCircle(Math.sqrt(currentMu), 'solid', currentState.color); // Limit cycle
+                }
+            } 
+            else if (currentState.id === 'snp') {
+                if (currentMu > 0) {
+                    const rUnstable = 1 - Math.sqrt(currentMu);
+                    const rStable = 1 + Math.sqrt(currentMu);
+                    
+                    // Trajectory from just outside the unstable cycle towards the stable cycle
+                    drawTrajectory(rUnstable + 0.05, 0, 'rgba(100, 116, 139, 0.5)', 800, 0.05); 
+                    // Trajectory from just inside the unstable cycle towards the origin
+                    drawTrajectory(Math.max(0.01, rUnstable - 0.05), 0, 'rgba(100, 116, 139, 0.5)', 800, 0.05); 
+                    // Trajectory from outside towards the stable cycle
+                    drawTrajectory(rStable + 0.5, 0, 'rgba(100, 116, 139, 0.5)', 800, 0.05); 
+
+                    drawCircle(rStable, 'solid', currentState.color);  // Stable
+                    drawCircle(rUnstable, 'dashed', '#ef4444'); // Unstable
+                } else if (Math.abs(currentMu) < 0.001) {
+                    drawTrajectory(0.8, 0, 'rgba(100, 116, 139, 0.5)', 800, 0.05);
+                    drawTrajectory(2.2, 0, 'rgba(100, 116, 139, 0.5)', 800, 0.05);
+                    drawCircle(1, 'solid', currentState.color); // Semi-stable
+                }
+            }
+            else if (currentState.id === 'sniper') {
+                drawTrajectory(0.05, 0.05, 'rgba(100, 116, 139, 0.5)', 1500, 0.05); // Inner trajectory from unstable origin
+                drawTrajectory(1.4, 1.4, 'rgba(100, 116, 139, 0.5)', 1500, 0.05); // Outer trajectory
+
+                // Invariant circle r=1
+                phaseCtx.beginPath();
+                const radius = 1 * (w / (pdX[1] - pdX[0]));
+                phaseCtx.arc(mapX(0), mapY(0), radius, 0, Math.PI*2);
+                phaseCtx.strokeStyle = 'rgba(148, 163, 184, 0.2)'; // Faint track
+                phaseCtx.lineWidth = 1;
+                phaseCtx.stroke();
+
+                drawPoint(0, 0, 'empty', '#ef4444'); // Unstable origin
+
+                if (currentMu > 1) {
+                    drawCircle(1, 'solid', currentState.color); // Stable limit cycle
+                } else if (Math.abs(currentMu - 1) < 0.005) {
+                    drawCircle(1, 'solid', currentState.color); // Limit cycle at critical
+                    drawPoint(0, 1, 'solid', '#f59e0b'); // Bottleneck node/saddle merge at top
+                } else {
+                    let val = Math.max(-1, Math.min(1, currentMu)); 
+                    const phi1 = Math.asin(val); // Node (Stable)
+                    const phi2 = Math.PI - Math.asin(val); // Saddle (Unstable)
+                    
+                    const x1 = Math.cos(phi1); const y1 = Math.sin(phi1);
+                    const x2 = Math.cos(phi2); const y2 = Math.sin(phi2);
+
+                    drawPoint(x1, y1, 'solid', '#10b981'); // Node
+                    drawPoint(x2, y2, 'empty', '#ef4444'); // Saddle
+
+                    // Emphasize the flow from the saddle to the node along the cycle
+                    drawTrajectory(Math.cos(phi2 - 0.05), Math.sin(phi2 - 0.05), 'rgba(100, 116, 139, 0.8)', 1000, 0.05);
+                }
+            }
+            else if (currentState.id === 'sl') {
+                // Inner trajectory from unstable focus (1,0) spiraling outwards
+                drawTrajectory(1.05, 0.05, 'rgba(100, 116, 139, 0.5)', 1500, 0.05); 
+
+                // SADDLE LOOP (Numerical Integration of Manifolds)
+                const saddleX = 0, saddleY = 0;
+                drawPoint(saddleX, saddleY, 'empty', '#ef4444'); // Saddle
+                drawPoint(1, 0, 'empty', '#ef4444'); // Unstable Focus
+                
+                // Saddle Eigenvalues
+                const lambda_plus = (currentMu + Math.sqrt(currentMu*currentMu + 4)) / 2;  // > 0
+                const lambda_minus = (currentMu - Math.sqrt(currentMu*currentMu + 4)) / 2; // < 0
+
+                // Integrate Unstable Manifold (W^u) - Leaves Saddle
+                let p_u = { x: 0.001, y: 0.001 * lambda_plus };
+                phaseCtx.beginPath();
+                phaseCtx.moveTo(mapX(p_u.x), mapY(p_u.y));
+                
+                // W^u forms the limit cycle for mu < mu_c
+                phaseCtx.strokeStyle = currentMu <= currentState.muCrit ? currentState.color : '#ef4444';
+                phaseCtx.lineWidth = 2;
+                
+                let stepsU = 6000;
+                let dtU = 0.01;
+                for(let i=0; i<stepsU; i++) {
+                    p_u = rk4Step(p_u.x, p_u.y, currentMu, dtU, currentState.dx, currentState.dy);
+                    phaseCtx.lineTo(mapX(p_u.x), mapY(p_u.y));
+                    // break if out of reasonable bounds to save performance
+                    if(p_u.x < -2 || p_u.x > 3 || p_u.y < -3 || p_u.y > 3) break;
+                }
+                phaseCtx.stroke();
+
+                // Integrate Stable Manifold (W^s) - Enters Saddle backwards in time
+                let p_s = { x: 0.001, y: 0.001 * lambda_minus };
+                phaseCtx.beginPath();
+                phaseCtx.moveTo(mapX(p_s.x), mapY(p_s.y));
+                phaseCtx.strokeStyle = '#10b981'; // Green
+                phaseCtx.setLineDash([4, 4]); // Dashed
+                phaseCtx.lineWidth = 1.5;
+                
+                let stepsS = 2000;
+                let dtS = -0.01; // Backwards
+                for(let i=0; i<stepsS; i++) {
+                    p_s = rk4Step(p_s.x, p_s.y, currentMu, dtS, currentState.dx, currentState.dy);
+                    phaseCtx.lineTo(mapX(p_s.x), mapY(p_s.y));
+                    if(p_s.x < -2 || p_s.x > 3 || p_s.y < -3 || p_s.y > 3) break;
+                }
+                phaseCtx.stroke();
+                phaseCtx.setLineDash([]);
+            }
+        }
+
+        function draw1DPlot(ctx, plotData) {
+            const w = ctx.canvas.width / (window.devicePixelRatio || 1);
+            const h = ctx.canvas.height / (window.devicePixelRatio || 1);
+            
+            ctx.clearRect(0, 0, w, h);
+
+            const pdX = plotData.domain;
+            const pdY = plotData.range;
+            
+            const mapX = x => ((x - pdX[0]) / (pdX[1] - pdX[0])) * w;
+            const mapY = y => h - ((y - pdY[0]) / (pdY[1] - pdY[0])) * h;
+
+            // Grid & Axes
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, mapY(0)); ctx.lineTo(w, mapY(0)); // X axis
+            ctx.moveTo(mapX(0), 0); ctx.lineTo(mapX(0), h); // Y axis
+            ctx.stroke();
+
+            // Plot curve
+            ctx.beginPath();
+            ctx.strokeStyle = currentState.color;
+            ctx.lineWidth = 2.5;
+            
+            const steps = 150;
+            let first = true;
+            for(let i=0; i<=steps; i++) {
+                const v = pdX[0] + (i/steps) * (pdX[1] - pdX[0]);
+                const val = plotData.f(v, currentMu);
+                const px = mapX(v);
+                const py = mapY(val);
+                
+                if(first) { ctx.moveTo(px, py); first = false; }
+                else { ctx.lineTo(px, py); }
+            }
+            ctx.stroke();
+
+            // Roots (Fixed points)
+            ctx.fillStyle = '#fff';
+            for(let i=0; i<steps; i++) {
+                const v1 = pdX[0] + (i/steps) * (pdX[1] - pdX[0]);
+                const v2 = pdX[0] + ((i+1)/steps) * (pdX[1] - pdX[0]);
+                const val1 = plotData.f(v1, currentMu);
+                const val2 = plotData.f(v2, currentMu);
+                
+                if (val1 * val2 <= 0) {
+                    const rootV = v1 - val1 * (v2 - v1) / (val2 - val1);
+                    // Determine stability (slope at root)
+                    const slope = (val2 - val1) / (v2 - v1);
+                    const isStable = slope < 0;
+
+                    ctx.beginPath();
+                    ctx.arc(mapX(rootV), mapY(0), 4, 0, Math.PI*2);
+                    ctx.fillStyle = isStable ? '#10b981' : '#fff';
+                    ctx.fill();
+                    ctx.strokeStyle = isStable ? '#10b981' : '#ef4444';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function drawAll() {
+            drawPhasePortrait();
+            
+            // Handle 1D Plots dynamically
+            if(currentState.plots.length === 0) {
+                document.getElementById('plots-container').style.display = 'none';
+            } else {
+                document.getElementById('plots-container').style.display = 'flex';
+                
+                // Plot 1
+                document.getElementById('plot-title-1').innerHTML = currentState.plots[0].title;
+                renderMathInElement(document.getElementById('plot-title-1'), { delimiters: [{left: '$', right: '$', display: false}] });
+                draw1DPlot(plotCtx1, currentState.plots[0]);
+
+                // Plot 2
+                const wrapper2 = document.getElementById('plot-wrapper-2');
+                if(currentState.plots.length > 1) {
+                    wrapper2.classList.remove('hidden');
+                    wrapper2.classList.add('flex'); // explicitly ensure flex rendering
+
+                    // Resize Plot 2 explicitly since it might have been hidden during window resize
+                    const dpr = window.devicePixelRatio || 1;
+                    const rect = wrapper2.getBoundingClientRect();
+                    plotCanvas2.width = rect.width * dpr;
+                    plotCanvas2.height = rect.height * dpr;
+                    plotCtx2.setTransform(1, 0, 0, 1, 0, 0);
+                    plotCtx2.scale(dpr, dpr);
+
+                    document.getElementById('plot-title-2').innerHTML = currentState.plots[1].title;
+                    renderMathInElement(document.getElementById('plot-title-2'), { delimiters: [{left: '$', right: '$', display: false}] });
+                    draw1DPlot(plotCtx2, currentState.plots[1]);
+                } else {
+                    wrapper2.classList.add('hidden');
+                    wrapper2.classList.remove('flex');
+                }
+            }
+        }
+
+        function updateUI() {
+            muSlider.min = currentState.muMin;
+            muSlider.max = currentState.muMax;
+            muSlider.value = currentMu;
+            muDisplay.innerText = currentMu.toFixed(3);
+            muCritDisplay.innerHTML = `Critical: $\\mu_c = ${currentState.muCrit}$`;
+            
+            document.getElementById('full-name').innerText = currentState.fullName;
+
+            // Equation formatting via KaTeX
+            const equationDisplay = document.getElementById('equation-display');
+            equationDisplay.innerHTML = `\\[ ${currentState.eq} \\]`;
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '\\[', right: '\\]', display: true},
+                    {left: '$', right: '$', display: false}
+                ]
+            });
+
+            drawAll();
+        }
+
+        function setBifurcation(typeId) {
+            currentState = BIFURCATIONS[typeId];
+            currentMu = currentState.muDefault;
+            
+            // Update active button state
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if(btn.dataset.type === typeId) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+
+            updateUI();
+        }
+
+        // Event Listeners
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                setBifurcation(e.target.dataset.type);
+            });
+        });
+
+        muSlider.addEventListener('input', (e) => {
+            currentMu = parseFloat(e.target.value);
+            muDisplay.innerText = currentMu.toFixed(3);
+            drawAll();
+        });
+
+        // Initialize Everything
+        window.onload = function() {
+            resizeCanvases();
+            setBifurcation('hopf');
+        };
+
+    </script>
+</body>
+</html>

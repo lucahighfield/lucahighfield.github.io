@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turing Patterns: Reaction-Diffusion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        canvas {
+            display: block;
+        }
+        /* Keep the simulation grid crisp when scaled up */
+        #fieldCanvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+    </style>
+</head>
+<body class="bg-slate-200 p-4 md:p-8 min-h-screen font-sans">
+
+    <div class="flex flex-col h-full w-full bg-slate-50 text-slate-800 p-6 rounded-xl shadow-lg max-w-[1400px] mx-auto border border-slate-200">
+        
+        <!-- Header -->
+        <div class="mb-6 border-b border-slate-200 pb-4">
+            <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+                    <path d="M2 12h20"></path>
+                </svg>
+                Turing Patterns: Gray-Scott Model
+            </h1>
+            <p class="text-slate-600 mt-2">
+                Interactive Gray-Scott reaction-diffusion visualization. Adjust parameters to explore different pattern types.
+            </p>
+        </div>
+
+        <div class="flex flex-col gap-6">
+            
+            <!-- Canvases Panel (Moved to top) -->
+            <div class="w-full grid grid-cols-1 lg:grid-cols-2 gap-4">
+                
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[450px]">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Phase Space (u vs v, center pixel)</h3>
+                        <div class="flex gap-3 text-xs">
+                            <span class="flex items-center gap-1"><div class="w-3 h-1 bg-blue-500 border-t border-dashed border-white"></div> u-nullcline</span>
+                            <span class="flex items-center gap-1"><div class="w-3 h-1 bg-amber-500"></div> v-nullcline</span>
+                        </div>
+                    </div>
+                    <div class="relative flex-grow w-full rounded overflow-hidden bg-slate-50 border border-slate-100">
+                        <canvas id="phaseCanvas" width="800" height="400" class="absolute inset-0 w-full h-full object-contain"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col h-[450px]">
+                    <div class="w-full mb-3 text-left">
+                        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">2D Spatial Field (Activator U)</h3>
+                        <p class="text-sm text-slate-600">Displays the 2D spatial distribution of the activator (U) over time.</p>
+                    </div>
+                    <div class="relative flex-grow w-full rounded overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center p-4">
+                        <div class="relative h-full aspect-square rounded overflow-hidden bg-slate-900 border border-slate-200 shadow-inner">
+                            <canvas id="fieldCanvas" width="150" height="150" class="absolute inset-0 w-full h-full object-cover"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Controls Panel (Moved to bottom and formatted horizontally) -->
+            <div class="w-full bg-white p-6 rounded-lg shadow-sm border border-slate-200 flex flex-col gap-5">
+                <h2 class="font-semibold text-lg text-slate-800">Parameters & Controls</h2>
+                
+                <div class="flex flex-col lg:flex-row gap-6">
+                    
+                    <div class="flex-grow grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">
+                                Pattern Preset
+                            </label>
+                            <select id="presetSelect" class="w-full p-2 border border-slate-300 rounded-md bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="coral">Coral / Maze</option>
+                                <option value="mitosis">Mitosis (Dividing Spots)</option>
+                                <option value="spots">Spots</option>
+                                <option value="stripes">Stripes</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">
+                                Feed rate <i>F</i> (<span id="fValueDisplay">0.055</span>)
+                            </label>
+                            <input 
+                                type="range" 
+                                id="fSlider"
+                                min="0.010" 
+                                max="0.100" 
+                                step="0.001" 
+                                value="0.0545" 
+                                class="w-full cursor-pointer accent-indigo-600"
+                            />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">
+                                Kill rate <i>k</i> (<span id="kValueDisplay">0.062</span>)
+                            </label>
+                            <input 
+                                type="range" 
+                                id="kSlider"
+                                min="0.040" 
+                                max="0.070" 
+                                step="0.001" 
+                                value="0.062" 
+                                class="w-full cursor-pointer accent-indigo-600"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row lg:flex-col gap-3 flex-shrink-0 lg:w-[250px]">
+                        <button 
+                            id="btnGlobal"
+                            class="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm flex-grow"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2v20"></path>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                            Perturb Steady State
+                        </button>
+                        
+                        <button 
+                            id="btnLocal"
+                            class="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg transition-colors border border-slate-300 flex-grow"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <circle cx="12" cy="12" r="2"></circle>
+                            </svg>
+                            Drop Local Seed
+                        </button>
+
+                        <button 
+                            id="btnReset"
+                            class="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg transition-colors border border-slate-300 flex-grow"
+                        >
+                            Reset to Trivial State
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mt-1 p-4 bg-amber-50 rounded border border-amber-200 text-sm text-amber-800 leading-relaxed">
+                    <strong>Interaction:</strong> Use the controls above to change the feed and kill rates, or select a preset. Click <em>"Perturb Steady State"</em> to initialize the grid with random noise, or <em>"Drop Local Seed"</em> to place a perturbation in the center. The phase space tracks the center pixel over time.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // UI Elements
+            const presetSelect = document.getElementById('presetSelect');
+            const fSlider = document.getElementById('fSlider');
+            const kSlider = document.getElementById('kSlider');
+            const fDisplay = document.getElementById('fValueDisplay');
+            const kDisplay = document.getElementById('kValueDisplay');
+            
+            const btnGlobal = document.getElementById('btnGlobal');
+            const btnLocal = document.getElementById('btnLocal');
+            const btnReset = document.getElementById('btnReset');
+            
+            const fieldCanvas = document.getElementById('fieldCanvas');
+            const phaseCanvas = document.getElementById('phaseCanvas');
+            const fieldCtx = fieldCanvas.getContext('2d');
+            const pCtx = phaseCanvas.getContext('2d');
+
+            // Simulation Constants & Parameters
+            const W = 150; // Grid Width
+            const H = 150; // Grid Height
+            const Du = 1.0;
+            const Dv = 0.5;
+            const dt = 1.0;
+            const stepsPerFrame = 10;
+
+            let sim = {
+                F: parseFloat(fSlider.value),
+                k: parseFloat(kSlider.value),
+                history: [],
+                maxHistory: 3000,
+                isRunning: true
+            };
+
+            const presets = {
+                coral: { F: 0.0545, k: 0.0620 },
+                mitosis: { F: 0.0360, k: 0.0590 },
+                spots: { F: 0.0250, k: 0.0600 },
+                stripes: { F: 0.0220, k: 0.0510 }
+            };
+
+            // Grid Arrays
+            let U = new Float32Array(W * H);
+            let V = new Float32Array(W * H);
+            let nextU = new Float32Array(W * H);
+            let nextV = new Float32Array(W * H);
+            
+            // Reusable ImageData for fast rendering
+            const imgData = fieldCtx.createImageData(W, H);
+
+            // Setup / Reset Functions
+            function getHSS() {
+                // Calculate homogeneous steady state if it exists
+                const disc = 1 - 4 * Math.pow(sim.F + sim.k, 2) / sim.F;
+                if (disc >= 0) {
+                    const u_star = (1 - Math.sqrt(disc)) / 2;
+                    const v_star = (sim.F + sim.k) / u_star;
+                    return { u: u_star, v: v_star };
+                }
+                return null;
+            }
+
+            function applyGlobalNoise() {
+                const hss = getHSS();
+                if (hss) {
+                    for(let i = 0; i < W * H; i++) {
+                        U[i] = hss.u + (Math.random() - 0.5) * 0.1; // Increased noise for faster visual feedback
+                        V[i] = hss.v + (Math.random() - 0.5) * 0.1;
+                    }
+                } else {
+                    alert("No unstable steady state exists for these parameters. Try adjusting F and k.");
+                    resetTrivial();
+                }
+                sim.history = [];
+            }
+
+            function dropLocalSeed() {
+                resetTrivial();
+                const cx = Math.floor(W/2);
+                const cy = Math.floor(H/2);
+                for(let y = cy - 5; y < cy + 5; y++) {
+                    for(let x = cx - 5; x < cx + 5; x++) {
+                        if (x >= 0 && x < W && y >= 0 && y < H) {
+                            U[x + y*W] = 0.5;
+                            V[x + y*W] = 0.25 + (Math.random() - 0.5) * 0.05;
+                        }
+                    }
+                }
+            }
+
+            function resetTrivial() {
+                for(let i = 0; i < W * H; i++) {
+                    U[i] = 1.0;
+                    V[i] = 0.0;
+                }
+                sim.history = [];
+            }
+
+            // Event Listeners
+            fSlider.addEventListener('input', (e) => {
+                sim.F = parseFloat(e.target.value);
+                fDisplay.textContent = sim.F.toFixed(3);
+                presetSelect.value = 'custom';
+            });
+
+            kSlider.addEventListener('input', (e) => {
+                sim.k = parseFloat(e.target.value);
+                kDisplay.textContent = sim.k.toFixed(3);
+                presetSelect.value = 'custom';
+            });
+
+            presetSelect.addEventListener('change', (e) => {
+                const val = e.target.value;
+                if (presets[val]) {
+                    sim.F = presets[val].F;
+                    sim.k = presets[val].k;
+                    fSlider.value = sim.F;
+                    kSlider.value = sim.k;
+                    fDisplay.textContent = sim.F.toFixed(3);
+                    kDisplay.textContent = sim.k.toFixed(3);
+                    applyGlobalNoise(); // Auto-restart to show new pattern
+                }
+            });
+
+            btnGlobal.addEventListener('click', applyGlobalNoise);
+            btnLocal.addEventListener('click', dropLocalSeed);
+            btnReset.addEventListener('click', resetTrivial);
+
+            // Handle Canvas Resizing (Only for phase canvas, field canvas uses CSS scaling)
+            function resizeCanvases() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = phaseCanvas.parentElement.getBoundingClientRect();
+                phaseCanvas.width = rect.width * dpr;
+                phaseCanvas.height = rect.height * dpr;
+                phaseCanvas.style.width = `${rect.width}px`;
+                phaseCanvas.style.height = `${rect.height}px`;
+                pCtx.scale(dpr, dpr);
+            }
+
+            window.addEventListener('resize', resizeCanvases);
+            resizeCanvases();
+
+            // Initialize Simulation
+            applyGlobalNoise();
+
+            // Main Animation Loop
+            function draw() {
+                // 1. UPDATE PDE (Gray-Scott integration)
+                if (sim.isRunning) {
+                    for (let step = 0; step < stepsPerFrame; step++) {
+                        for (let y = 0; y < H; y++) {
+                            for (let x = 0; x < W; x++) {
+                                const idx = x + y * W;
+                                const u = U[idx];
+                                const v = V[idx];
+                                const uvv = u * v * v;
+                                
+                                // Periodic boundary conditions wrap-around
+                                const left = (x === 0) ? W - 1 : x - 1;
+                                const right = (x === W - 1) ? 0 : x + 1;
+                                const top = (y === 0) ? H - 1 : y - 1;
+                                const bottom = (y === H - 1) ? 0 : y + 1;
+
+                                // 9-point Laplacian (weights: adj=0.2, diag=0.05, center=-1.0)
+                                const lapU = (U[left + y*W] + U[right + y*W] + U[x + top*W] + U[x + bottom*W] - 4*u) * 0.2
+                                           + (U[left + top*W] + U[right + top*W] + U[left + bottom*W] + U[right + bottom*W] - 4*u) * 0.05;
+                                           
+                                const lapV = (V[left + y*W] + V[right + y*W] + V[x + top*W] + V[x + bottom*W] - 4*v) * 0.2
+                                           + (V[left + top*W] + V[right + top*W] + V[left + bottom*W] + V[right + bottom*W] - 4*v) * 0.05;
+
+                                nextU[idx] = Math.max(0, Math.min(2.0, u + (Du * lapU - uvv + sim.F * (1.0 - u)) * dt));
+                                nextV[idx] = Math.max(0, Math.min(2.0, v + (Dv * lapV + uvv - (sim.F + sim.k) * v) * dt));
+                            }
+                        }
+                        // Swap arrays to advance time
+                        let tempU = U; U = nextU; nextU = tempU;
+                        let tempV = V; V = nextV; nextV = tempV;
+                        
+                        // Record center pixel history smoothly inside the loop (every 2 steps)
+                        if (step % 2 === 0) {
+                            const centerIdx = Math.floor(W/2) + Math.floor(H/2) * W;
+                            sim.history.push({ u: U[centerIdx], v: V[centerIdx] });
+                            if (sim.history.length > sim.maxHistory) {
+                                sim.history.shift();
+                            }
+                        }
+                    }
+                }
+
+                // 2. DRAW 2D FIELD
+                for (let i = 0; i < W * H; i++) {
+                    let val = U[i];
+                    val = Math.max(0, Math.min(1, val));
+                    
+                    // Colormap: Deep Navy -> Teal -> Pale Yellow
+                    let r, g, b;
+                    if (val < 0.5) {
+                        let t = val * 2.0;
+                        r = 10 + t * (20);    // 10 -> 30
+                        g = 15 + t * (125);   // 15 -> 140
+                        b = 30 + t * (120);   // 30 -> 150
+                    } else {
+                        let t = (val - 0.5) * 2.0;
+                        r = 30 + t * (220);   // 30 -> 250
+                        g = 140 + t * (100);  // 140 -> 240
+                        b = 150 + t * (30);   // 150 -> 180
+                    }
+                    
+                    const idx = i * 4;
+                    imgData.data[idx] = r;
+                    imgData.data[idx+1] = g;
+                    imgData.data[idx+2] = b;
+                    imgData.data[idx+3] = 255;
+                }
+                fieldCtx.putImageData(imgData, 0, 0);
+
+
+                // 3. DRAW PHASE SPACE
+                const widthP = phaseCanvas.parentElement.clientWidth;
+                const heightP = phaseCanvas.parentElement.clientHeight;
+                pCtx.clearRect(0, 0, widthP, heightP);
+
+                const marginX = 40;
+                const marginY = 30;
+                const graphW = widthP - marginX - 10;
+                const graphH = heightP - marginY - 10;
+
+                // Axes scales
+                const maxU = 1.0;
+                const maxV = 0.8;
+                const mapU = (uVal) => marginX + (uVal / maxU) * graphW;
+                const mapV = (vVal) => heightP - marginY - (vVal / maxV) * graphH;
+
+                // Draw Axes
+                pCtx.beginPath();
+                pCtx.strokeStyle = '#cbd5e1';
+                pCtx.lineWidth = 1;
+                pCtx.moveTo(marginX, mapV(0)); pCtx.lineTo(widthP, mapV(0)); // u-axis
+                pCtx.moveTo(mapU(0), 10); pCtx.lineTo(mapU(0), heightP - marginY); // v-axis
+                pCtx.stroke();
+
+                pCtx.fillStyle = '#64748b';
+                pCtx.font = '12px sans-serif';
+                for(let u = 0.2; u <= maxU; u += 0.2) pCtx.fillText(u.toFixed(1), mapU(u) - 10, mapV(0) + 15);
+                for(let v = 0.2; v <= maxV; v += 0.2) pCtx.fillText(v.toFixed(1), mapU(0) - 25, mapV(v) + 5);
+                pCtx.fillText('u', widthP - 15, mapV(0) - 10);
+                pCtx.fillText('v', mapU(0) + 10, 15);
+
+                // Local Nullclines (ignoring diffusion)
+                // U-nullcline: v = sqrt( F(1-u)/u )
+                pCtx.beginPath();
+                pCtx.strokeStyle = '#3b82f6'; // blue-500
+                pCtx.setLineDash([5, 5]);
+                for(let u = 0.01; u <= maxU; u += 0.01) {
+                    let v = Math.sqrt(sim.F * (1 - u) / u);
+                    if (v > maxV + 0.1) continue;
+                    if (u === 0.01) pCtx.moveTo(mapU(u), mapV(v));
+                    else pCtx.lineTo(mapU(u), mapV(v));
+                }
+                pCtx.stroke();
+
+                // V-nullcline branch 1 (v = 0) and branch 2 (v = (F+k)/u)
+                pCtx.beginPath();
+                pCtx.strokeStyle = '#f59e0b'; // amber-500
+                pCtx.setLineDash([]);
+                pCtx.moveTo(mapU(0), mapV(0));
+                pCtx.lineTo(mapU(maxU), mapV(0)); // v=0 branch
+                for(let u = 0.01; u <= maxU; u += 0.01) {
+                    let v = (sim.F + sim.k) / u;
+                    if (v > maxV + 0.1) continue;
+                    if (u === 0.01 || (sim.F + sim.k)/(u-0.01) > maxV + 0.1) pCtx.moveTo(mapU(u), mapV(v));
+                    else pCtx.lineTo(mapU(u), mapV(v));
+                }
+                pCtx.stroke();
+
+                // Mark Homogeneous Steady State
+                const hss = getHSS();
+                if (hss) {
+                    pCtx.beginPath();
+                    pCtx.fillStyle = '#0f172a';
+                    pCtx.arc(mapU(hss.u), mapV(hss.v), 4, 0, Math.PI * 2);
+                    pCtx.fill();
+                }
+
+                // Trajectory of the center pixel
+                if (sim.history.length > 0) {
+                    pCtx.beginPath();
+                    pCtx.strokeStyle = 'rgba(239, 68, 68, 0.7)'; // red-500 with opacity
+                    pCtx.lineWidth = 2;
+                    pCtx.moveTo(mapU(sim.history[0].u), mapV(sim.history[0].v));
+                    sim.history.forEach(pt => {
+                        pCtx.lineTo(mapU(pt.u), mapV(pt.v));
+                    });
+                    pCtx.stroke();
+
+                    // Current point
+                    const currentP = sim.history[sim.history.length - 1];
+                    pCtx.beginPath();
+                    pCtx.fillStyle = '#ef4444';
+                    pCtx.arc(mapU(currentP.u), mapV(currentP.v), 4, 0, Math.PI * 2);
+                    pCtx.fill();
+                }
+
+                requestAnimationFrame(draw);
+            }
+
+            // Start animation loop
+            draw();
+        });
+    </script>
+</body>
+</html>

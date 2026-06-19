@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lorenz Attractor & Butterfly Effect</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 0; }
+        .panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.1); pointer-events: auto; }
+        input[type=range] { accent-color: #3b82f6; }
+        
+        /* Custom scrollbar for panel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="text-sm">
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer" class="absolute inset-0 z-10 pointer-events-none flex flex-col md:flex-row justify-between gap-4 p-4 md:p-6 w-full h-full">
+        
+        <!-- Left Panel: Information & Controls -->
+        <div class="panel w-full md:w-96 rounded-xl p-5 flex flex-col gap-4 shadow-2xl max-h-[55vh] md:max-h-full overflow-y-auto shrink-0">
+            <div>
+                <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 mb-1">The Lorenz Attractor</h1>
+                <p class="text-slate-400 text-xs">Sensitive dependence on initial conditions</p>
+            </div>
+            
+            <div class="text-slate-300 space-y-3 leading-relaxed text-xs">
+                <p>
+                    The attractor exhibits chaotic behavior. If \( \boldsymbol{x}(t) \) is on the attractor and \( \boldsymbol{x}(t) + \boldsymbol{\delta}(t) \) is a nearby point, then the distance grows exponentially:
+                </p>
+                <div class="bg-slate-800/50 p-2 rounded border border-slate-700 text-center">
+                    \( \| \boldsymbol{\delta}(t) \| \approx \| \boldsymbol{\delta}_0 \| e^{\lambda t} \)
+                </div>
+                <p>
+                    where \( \lambda \approx 0.9 \) is the maximal Lyapunov exponent. This exponential divergence makes long-term prediction impossible.
+                </p>
+                <p>
+                    The prediction horizon scales logarithmically with initial precision:
+                </p>
+                <div class="bg-slate-800/50 p-2 rounded border border-slate-700 text-center">
+                    \( t_{\text{horizon}} \sim \mathcal{O} \left( \frac{1}{\lambda} \ln \frac{a}{\| \boldsymbol{\delta}_0 \|} \right) \)
+                </div>
+            </div>
+
+            <hr class="border-slate-700">
+
+            <!-- Controls -->
+            <div class="flex flex-col gap-4">
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="font-semibold text-slate-200">Initial Perturbation \( \|\boldsymbol{\delta}_0\| \)</label>
+                        <span id="delta-val" class="text-blue-400 font-mono">1e-5</span>
+                    </div>
+                    <input type="range" id="delta-slider" min="-8" max="-1" step="0.1" value="-5" class="w-full">
+                    <p class="text-slate-500 text-[10px] mt-1">Adjusts how close the two trajectories start.</p>
+                </div>
+                
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="font-semibold text-slate-200">Simulation Speed</label>
+                    </div>
+                    <input type="range" id="speed-slider" min="1" max="10" step="1" value="3" class="w-full">
+                </div>
+
+                <div class="flex gap-2 mt-2">
+                    <button id="btn-toggle" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded shadow transition-colors font-semibold">
+                        Pause
+                    </button>
+                    <button id="btn-reset" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded shadow transition-colors font-semibold">
+                        Reset
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Legend -->
+            <div class="mt-auto pt-4 flex flex-col gap-2 text-xs">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-[#00ffff] shadow-[0_0_8px_#00ffff]"></div>
+                    <span>Trajectory 1 (Reference)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-[#ff00ff] shadow-[0_0_8px_#ff00ff]"></div>
+                    <span>Trajectory 2 (Perturbed)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Lorenz System Parameters ---
+        const SIGMA = 10;
+        const RHO = 28;
+        const BETA = 8 / 3;
+        const DT = 0.005; // Time step
+        const MAX_POINTS = 15000; // Trail length
+
+        // --- State Variables ---
+        let isRunning = true;
+        let simSpeed = 3;
+        let currentTime = 0;
+        let initialDelta = 1e-5;
+        
+        let state1 = { x: 0.1, y: 1.0, z: 1.05 };
+        let state2 = { x: 0.1 + initialDelta, y: 1.0 + initialDelta, z: 1.05 + initialDelta };
+
+        // Buffer arrays for high-performance 3D line rendering
+        let positions1 = new Float32Array(MAX_POINTS * 3);
+        let positions2 = new Float32Array(MAX_POINTS * 3);
+        let pointCount = 0;
+
+        // --- DOM Elements ---
+        const deltaSlider = document.getElementById('delta-slider');
+        const deltaValDisplay = document.getElementById('delta-val');
+        const speedSlider = document.getElementById('speed-slider');
+        const btnToggle = document.getElementById('btn-toggle');
+        const btnReset = document.getElementById('btn-reset');
+
+        // --- Three.js Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0f172a, 0.005);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, -60, 30);
+        camera.up.set(0, 0, 1); // Z is up
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // optimize for high DPI
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0, 25); // Center of the Lorenz attractor
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.5;
+
+        // Materials
+        const mat1 = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+        const mat2 = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+
+        // Geometries
+        const geo1 = new THREE.BufferGeometry();
+        geo1.setAttribute('position', new THREE.BufferAttribute(positions1, 3));
+        const line1 = new THREE.Line(geo1, mat1);
+        scene.add(line1);
+
+        const geo2 = new THREE.BufferGeometry();
+        geo2.setAttribute('position', new THREE.BufferAttribute(positions2, 3));
+        const line2 = new THREE.Line(geo2, mat2);
+        scene.add(line2);
+
+        // Leading point particles
+        const sphereGeo = new THREE.SphereGeometry(0.6, 16, 16);
+        const particle1 = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0x00ffff }));
+        const particle2 = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: 0xff00ff }));
+        scene.add(particle1);
+        scene.add(particle2);
+
+        // Grid/Helper
+        const gridHelper = new THREE.GridHelper(100, 20, 0x334155, 0x1e293b);
+        gridHelper.rotation.x = Math.PI / 2;
+        scene.add(gridHelper);
+
+        // --- Physics Engine (RK4 Integrator) ---
+        function lorenzDeriv(state) {
+            return {
+                dx: SIGMA * (state.y - state.x),
+                dy: state.x * (RHO - state.z) - state.y,
+                dz: state.x * state.y - BETA * state.z
+            };
+        }
+
+        function stepRK4(state, dt) {
+            const k1 = lorenzDeriv(state);
+            const k2 = lorenzDeriv({ x: state.x + k1.dx * dt / 2, y: state.y + k1.dy * dt / 2, z: state.z + k1.dz * dt / 2 });
+            const k3 = lorenzDeriv({ x: state.x + k2.dx * dt / 2, y: state.y + k2.dy * dt / 2, z: state.z + k2.dz * dt / 2 });
+            const k4 = lorenzDeriv({ x: state.x + k3.dx * dt, y: state.y + k3.dy * dt, z: state.z + k3.dz * dt });
+
+            return {
+                x: state.x + (k1.dx + 2 * k2.dx + 2 * k3.dx + k4.dx) * dt / 6,
+                y: state.y + (k1.dy + 2 * k2.dy + 2 * k3.dy + k4.dy) * dt / 6,
+                z: state.z + (k1.dz + 2 * k2.dz + 2 * k3.dz + k4.dz) * dt / 6
+            };
+        }
+
+        // --- Controls & Logic ---
+        function resetSimulation() {
+            // Read UI
+            initialDelta = Math.pow(10, parseFloat(deltaSlider.value));
+            
+            // Reset states
+            state1 = { x: 0.1, y: 1.0, z: 1.05 };
+            state2 = { x: 0.1 + initialDelta, y: 1.0, z: 1.05 };
+            
+            currentTime = 0;
+            pointCount = 0;
+            
+            // Clear geometries
+            geo1.setDrawRange(0, 0);
+            geo2.setDrawRange(0, 0);
+        }
+
+        deltaSlider.addEventListener('input', (e) => {
+            const val = Math.pow(10, parseFloat(e.target.value));
+            deltaValDisplay.innerText = val.toExponential(1);
+            resetSimulation();
+        });
+
+        speedSlider.addEventListener('input', (e) => {
+            simSpeed = parseInt(e.target.value);
+        });
+
+        btnToggle.addEventListener('click', () => {
+            isRunning = !isRunning;
+            btnToggle.innerText = isRunning ? "Pause" : "Play";
+            btnToggle.className = isRunning 
+                ? "flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded shadow transition-colors font-semibold"
+                : "flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded shadow transition-colors font-semibold";
+        });
+
+        btnReset.addEventListener('click', resetSimulation);
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Main Animation Loop ---
+        let frameCounter = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isRunning) {
+                // Perform multiple physics steps per visual frame
+                for (let step = 0; step < simSpeed; step++) {
+                    if (pointCount >= MAX_POINTS) {
+                        // Shift arrays left to create a rolling window effect
+                        positions1.copyWithin(0, 3, MAX_POINTS * 3);
+                        positions2.copyWithin(0, 3, MAX_POINTS * 3);
+                        pointCount--; 
+                    }
+
+                    // Update physics
+                    state1 = stepRK4(state1, DT);
+                    state2 = stepRK4(state2, DT);
+                    currentTime += DT;
+
+                    // Store new positions
+                    const idx = pointCount * 3;
+                    positions1[idx] = state1.x; positions1[idx+1] = state1.y; positions1[idx+2] = state1.z;
+                    positions2[idx] = state2.x; positions2[idx+1] = state2.y; positions2[idx+2] = state2.z;
+                    
+                    pointCount++;
+                }
+
+                // Update 3D Geometry
+                geo1.attributes.position.needsUpdate = true;
+                geo1.setDrawRange(0, pointCount);
+                
+                geo2.attributes.position.needsUpdate = true;
+                geo2.setDrawRange(0, pointCount);
+
+                // Update particle meshes
+                particle1.position.set(state1.x, state1.y, state1.z);
+                particle2.position.set(state2.x, state2.y, state2.z);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+            frameCounter++;
+        }
+
+        // Initialize and start
+        resetSimulation();
+        
+        // Wait for window load to ensure all resources and sizes are correct before starting
+        window.onload = function() {
+            animate();
+        };
+    </script>
+</body>
+</html>
